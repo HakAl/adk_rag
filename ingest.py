@@ -1,45 +1,53 @@
-import os, glob, time
-from vertexai.preview import rag
-import vertexai
+import os, glob
+from langchain_community.document_loaders import PyPDFDirectoryLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.embeddings import OllamaEmbeddings
+from langchain_chroma import Chroma
 
-PROJECT_ID = os.environ["GOOGLE_CLOUD_PROJECT"]
-LOCATION   = "us-central1"
-BUCKET     = os.environ["BUCKET"]          # gs://adk-rag-demo-xxx
+# --- Configuration for Local RAG Ingestion -------------------------
+# 1. Directory where your PDF files are stored
+PDF_SOURCE_DIR = "data/"
 
-vertexai.init(project=PROJECT_ID, location=LOCATION)
+# 2. Directory where the local vector database will be saved
+VECTOR_STORE_DIR = "chroma_db"
 
-corpus_display = "adk_quickstart_corpus"
-embedding_config = rag.EmbeddingModelConfig(
-    publisher_model="publishers/google/models/text-embedding-004"
-)
+# 3. The name of the collection within the vector database
+COLLECTION_NAME = "adk_local_rag"
 
-# 1. Create (or re-use) corpus
-try:
-    corpus = rag.RAGCorpus.create(
-        display_name=corpus_display,
-        embedding_model_config=embedding_config,
+# 4. The Ollama model to use for creating embeddings
+EMBEDDING_MODEL = "nomic-embed-text"
+
+# --- Local RAG Ingestion Pipeline -----------------------------------
+
+# 1. Load all PDF documents from the specified directory
+print(f"Loading documents from '{PDF_SOURCE_DIR}'...")
+loader = PyPDFDirectoryLoader(PDF_SOURCE_DIR)
+docs = loader.load()
+
+if not docs:
+    print("No PDF documents found. Please check the directory.")
+else:
+    print(f"Loaded {len(docs)} document(s).")
+
+    # 2. Split the documents into smaller chunks
+    print("Splitting documents into chunks...")
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1024, chunk_overlap=100)
+    splits = text_splitter.split_documents(docs)
+    print(f"Created {len(splits)} text chunks.")
+
+    # 3. Initialize the Ollama embedding model
+    print(f"Initializing embedding model: '{EMBEDDING_MODEL}'...")
+    embeddings = OllamaEmbeddings(model=EMBEDDING_MODEL)
+
+    # 4. Create the vector store and ingest the documents
+    #    This will generate embeddings and save them to disk in the VECTOR_STORE_DIR.
+    print(f"Creating vector store in '{VECTOR_STORE_DIR}'...")
+    vectorstore = Chroma.from_documents(
+        documents=splits,
+        embedding=embeddings,
+        collection_name=COLLECTION_NAME,
+        persist_directory=VECTOR_STORE_DIR
     )
-    print("Corpus created:", corpus.name)
-except Exception:   # already exists
-    corpus = next(c for c in rag.RAGCorpus.list()
-                  if c.display_name == corpus_display)
-    print("Re-using corpus:", corpus.name)
 
-# 2. Upload & import every PDF
-for local_pdf in glob.glob("data/*.pdf"):
-    blob_name = os.path.basename(local_pdf)
-    gs_path   = f"{BUCKET}/{blob_name}"
-
-    # a) upload to GCS
-    os.system(f"gsutil cp '{local_pdf}' {gs_path}")
-
-    # b) import into RAG corpus
-    corpus.add_document(
-        uri=gs_path,
-        chunk_size=1024,
-        chunk_overlap=100
-    )
-    print(f"Imported {blob_name}")
-
-print("Waiting for indexing…")
-time.sleep(20)
+    print("\n✅ Ingestion complete.")
+    print(f"Vector store created with {vectorstore._collection.count()} embeddings.")

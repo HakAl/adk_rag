@@ -1,3 +1,15 @@
-google-adk>=0.2.0
-google-cloud-aiplatform[rag]>=1.38.0
-pypdf>=3.17.0
+# Google libraries (useful for ADK and potential cloud integrations)
+google-generativeai
+google-cloud-aiplatform
+
+# Core libraries for local RAG and model interaction
+google-adk
+litellm
+langchain
+langchain-community
+langchain-chroma
+langchain-ollama
+
+# Document loading and embedding utilities
+pypdf
+sentence-transformers

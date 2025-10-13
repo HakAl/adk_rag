@@ -1,36 +1,69 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-*.egg-info/
-pip-wheel-metadata/
-.pytest_cache/
-.coverage
-htmlcov/
-
-# Virtual-env
-.venv/
+# --- Python ---
+# Virtual environment folders
 venv/
+.venv/
 env/
+.env/
 
-# IDE
-.vscode/
-.idea/
-*.swp
-.DS_Store
-Thumbs.db
+# Byte-compiled / optimized / C extensions
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
 
-# ADK / build artefacts
-adk_output/
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
 dist/
-*.log
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
-# Local secrets / keys
-.env
-credentials.json
-key.json
+# --- Project-Specific ---
+# Local vector database (can be very large)
+chroma_db/
 
-# Data folder (keep dir, ignore files)
+# Source data - It's often better to not commit large datasets.
+# Add a .gitkeep file to the 'data/' folder to commit the empty directory.
 data/*
 !data/.gitkeep
+
+# Environment variables file
+.env
+
+# --- IDEs & Editors ---
+# Visual Studio Code
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# JetBrains / PyCharm
+.idea/
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# --- Operating Systems ---
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
