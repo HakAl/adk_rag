@@ -1,13 +1,15 @@
 """
 Vector store service for managing document embeddings and retrieval.
 """
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Dict, Any
 from pathlib import Path
 import time
+import json
+import csv
 
 from langchain_ollama import OllamaEmbeddings
 from langchain_chroma import Chroma
-from langchain_community.document_loaders import PyPDFDirectoryLoader
+from langchain_community.document_loaders import PyPDFDirectoryLoader, CSVLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain.schema import Document
 
@@ -48,34 +50,198 @@ class VectorStoreService:
         """Check if vector store exists."""
         return settings.vector_store_dir.exists() and any(settings.vector_store_dir.iterdir())
     
-    def ingest_pdfs(
+    def _load_csv_files(self, directory: Path) -> List[Document]:
+        """
+        Load CSV files from a directory.
+        
+        Args:
+            directory: Directory containing CSV files
+        
+        Returns:
+            List of Document objects
+        """
+        docs = []
+        csv_files = list(directory.glob("*.csv"))
+        
+        if not csv_files:
+            return docs
+        
+        logger.info(f"Found {len(csv_files)} CSV file(s)")
+        
+        for csv_file in csv_files:
+            try:
+                # Use CSVLoader for simple CSV files
+                loader = CSVLoader(str(csv_file), encoding='utf-8')
+                file_docs = loader.load()
+                logger.info(f"Loaded {len(file_docs)} rows from {csv_file.name}")
+                docs.extend(file_docs)
+            except Exception as e:
+                logger.error(f"Error loading CSV file {csv_file.name}: {e}")
+        
+        return docs
+    
+    def _load_jsonl_files(self, directory: Path) -> List[Document]:
+        """
+        Load JSONL (JSON Lines) files from a directory.
+        
+        Args:
+            directory: Directory containing JSONL files
+        
+        Returns:
+            List of Document objects
+        """
+        docs = []
+        jsonl_files = list(directory.glob("*.jsonl")) + list(directory.glob("*.json"))
+        
+        if not jsonl_files:
+            return docs
+        
+        logger.info(f"Found {len(jsonl_files)} JSONL file(s)")
+        
+        for jsonl_file in jsonl_files:
+            try:
+                with open(jsonl_file, 'r', encoding='utf-8') as f:
+                    line_count = 0
+                    for line_num, line in enumerate(f, 1):
+                        line = line.strip()
+                        if not line:
+                            continue
+                        
+                        try:
+                            data = json.loads(line)
+                            
+                            # Extract text content from various possible fields
+                            text_content = self._extract_text_from_json(data)
+                            
+                            if text_content:
+                                doc = Document(
+                                    page_content=text_content,
+                                    metadata={
+                                        'source': str(jsonl_file),
+                                        'line_number': line_num,
+                                        'original_data': data
+                                    }
+                                )
+                                docs.append(doc)
+                                line_count += 1
+                        except json.JSONDecodeError as e:
+                            logger.warning(f"Invalid JSON on line {line_num} in {jsonl_file.name}: {e}")
+                            continue
+                    
+                    logger.info(f"Loaded {line_count} records from {jsonl_file.name}")
+            except Exception as e:
+                logger.error(f"Error loading JSONL file {jsonl_file.name}: {e}")
+        
+        return docs
+    
+    def _extract_text_from_json(self, data: Dict[str, Any]) -> str:
+        """
+        Extract text content from a JSON object.
+        Checks common field names and concatenates multiple fields if needed.
+        
+        Args:
+            data: JSON data as dictionary
+        
+        Returns:
+            Extracted text content
+        """
+        # Common field names for text content
+        text_fields = ['text', 'content', 'body', 'message', 'description', 'summary']
+        
+        # Try to find a single text field first
+        for field in text_fields:
+            if field in data and isinstance(data[field], str):
+                return data[field]
+        
+        # If no single field found, concatenate all string values
+        text_parts = []
+        for key, value in data.items():
+            if isinstance(value, str) and value.strip():
+                # Format as "key: value" for context
+                text_parts.append(f"{key}: {value}")
+            elif isinstance(value, (list, dict)):
+                # Convert complex types to string
+                text_parts.append(f"{key}: {json.dumps(value)}")
+        
+        return "\n".join(text_parts)
+    
+    def _load_pdf_files(self, directory: Path) -> List[Document]:
+        """
+        Load PDF files from a directory.
+        
+        Args:
+            directory: Directory containing PDF files
+        
+        Returns:
+            List of Document objects
+        """
+        loader = PyPDFDirectoryLoader(str(directory))
+        docs = loader.load()
+        
+        if docs:
+            logger.info(f"Loaded {len(docs)} PDF document(s)")
+        
+        return docs
+
+    
+    def ingest_documents(
         self,
-        pdf_directory: Optional[Path] = None,
+        directory: Optional[Path] = None,
+        file_types: Optional[List[str]] = None,
         overwrite: bool = False
     ) -> Tuple[int, int, List[str]]:
         """
-        Ingest PDF documents into the vector store.
+        Ingest documents (PDF, CSV, JSONL) into the vector store.
         
         Args:
-            pdf_directory: Directory containing PDFs (defaults to settings.data_dir)
+            directory: Directory containing documents (defaults to settings.data_dir)
+            file_types: List of file types to ingest (e.g., ['pdf', 'csv', 'jsonl'])
+                       If None, ingests all supported types
             overwrite: Whether to overwrite existing collection
         
         Returns:
             Tuple of (num_documents, num_chunks, filenames)
         """
         start_time = time.time()
-        pdf_dir = pdf_directory or settings.data_dir
+        data_dir = directory or settings.data_dir
         
-        logger.info(f"Loading documents from '{pdf_dir}'...")
-        loader = PyPDFDirectoryLoader(str(pdf_dir))
-        docs = loader.load()
+        # Default to all supported types if not specified
+        if file_types is None:
+            file_types = ['pdf', 'csv', 'jsonl']
         
-        if not docs:
-            logger.warning("No PDF documents found")
+        logger.info(f"Loading documents from '{data_dir}'...")
+        logger.info(f"File types: {', '.join(file_types)}")
+        
+        all_docs = []
+        filenames = []
+        
+        # Load each file type
+        if 'pdf' in file_types:
+            pdf_docs = self._load_pdf_files(data_dir)
+            all_docs.extend(pdf_docs)
+            if pdf_docs:
+                pdf_files = list(set([Path(doc.metadata.get('source', '')).name for doc in pdf_docs]))
+                filenames.extend(pdf_files)
+        
+        if 'csv' in file_types:
+            csv_docs = self._load_csv_files(data_dir)
+            all_docs.extend(csv_docs)
+            if csv_docs:
+                csv_files = list(set([Path(doc.metadata.get('source', '')).name for doc in csv_docs]))
+                filenames.extend(csv_files)
+        
+        if 'jsonl' in file_types:
+            jsonl_docs = self._load_jsonl_files(data_dir)
+            all_docs.extend(jsonl_docs)
+            if jsonl_docs:
+                jsonl_files = list(set([Path(doc.metadata.get('source', '')).name for doc in jsonl_docs]))
+                filenames.extend(jsonl_files)
+        
+        if not all_docs:
+            logger.warning("No documents found to ingest")
             return 0, 0, []
         
-        logger.info(f"Loaded {len(docs)} document(s)")
-        filenames = list(set([Path(doc.metadata.get('source', '')).name for doc in docs]))
+        logger.info(f"Loaded {len(all_docs)} total document(s)")
         
         # Split documents
         logger.info("Splitting documents into chunks...")
@@ -83,7 +249,7 @@ class VectorStoreService:
             chunk_size=settings.chunk_size,
             chunk_overlap=settings.chunk_overlap
         )
-        splits = text_splitter.split_documents(docs)
+        splits = text_splitter.split_documents(all_docs)
         logger.info(f"Created {len(splits)} text chunks")
         
         # Create or update vector store
@@ -105,7 +271,29 @@ class VectorStoreService:
         count = self.vectorstore._collection.count()
         logger.info(f"✅ Ingestion complete in {duration:.2f}s. Total embeddings: {count}")
         
-        return len(docs), len(splits), filenames
+        return len(all_docs), len(splits), filenames
+    
+    def ingest_pdfs(
+        self,
+        pdf_directory: Optional[Path] = None,
+        overwrite: bool = False
+    ) -> Tuple[int, int, List[str]]:
+        """
+        Ingest PDF documents into the vector store.
+        (Maintained for backward compatibility)
+        
+        Args:
+            pdf_directory: Directory containing PDFs (defaults to settings.data_dir)
+            overwrite: Whether to overwrite existing collection
+        
+        Returns:
+            Tuple of (num_documents, num_chunks, filenames)
+        """
+        return self.ingest_documents(
+            directory=pdf_directory,
+            file_types=['pdf'],
+            overwrite=overwrite
+        )
     
     def search(self, query: str, k: Optional[int] = None) -> List[Document]:
         """

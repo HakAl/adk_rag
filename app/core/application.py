@@ -26,20 +26,22 @@ class RAGAgentApp:
     
     def ingest_documents(
         self,
-        pdf_directory: Optional[Path] = None,
+        directory: Optional[Path] = None,
+        file_types: Optional[List[str]] = None,
         overwrite: bool = False
     ) -> Tuple[int, int, List[str]]:
         """
-        Ingest PDF documents into the knowledge base.
+        Ingest documents (PDF, CSV, JSONL) into the knowledge base.
         
         Args:
-            pdf_directory: Directory containing PDFs
+            directory: Directory containing documents
+            file_types: List of file types to ingest ['pdf', 'csv', 'jsonl']
             overwrite: Whether to overwrite existing collection
         
         Returns:
             Tuple of (num_documents, num_chunks, filenames)
         """
-        return self.vector_store.ingest_pdfs(pdf_directory, overwrite)
+        return self.vector_store.ingest_documents(directory, file_types, overwrite)
     
     def get_stats(self) -> dict:
         """Get application statistics."""

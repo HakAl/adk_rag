@@ -39,7 +39,6 @@ ENV/
 
 # Data and logs
 data/*
-data/*.pdf
 chroma_db/
 logs/
 *.log

@@ -12,13 +12,21 @@ from app.core.application import RAGAgentApp
 def main():
     """Main entry point for ingestion script."""
     parser = argparse.ArgumentParser(
-        description="Ingest PDF documents into the RAG knowledge base"
+        description="Ingest documents (PDF, CSV, JSONL) into the RAG knowledge base"
     )
     parser.add_argument(
         '--directory',
         type=str,
         default=None,
-        help=f'Directory containing PDF files (default: {settings.data_dir})'
+        help=f'Directory containing documents (default: {settings.data_dir})'
+    )
+    parser.add_argument(
+        '--types',
+        type=str,
+        nargs='+',
+        choices=['pdf', 'csv', 'jsonl', 'all'],
+        default=['all'],
+        help='File types to ingest (default: all)'
     )
     parser.add_argument(
         '--overwrite',
@@ -29,16 +37,23 @@ def main():
     args = parser.parse_args()
     
     # Determine directory
-    pdf_dir = Path(args.directory) if args.directory else settings.data_dir
+    data_dir = Path(args.directory) if args.directory else settings.data_dir
     
-    if not pdf_dir.exists():
-        print(f"\n❌ Error: Directory '{pdf_dir}' does not exist\n")
+    if not data_dir.exists():
+        print(f"\n❌ Error: Directory '{data_dir}' does not exist\n")
         sys.exit(1)
+    
+    # Determine file types
+    if 'all' in args.types:
+        file_types = ['pdf', 'csv', 'jsonl']
+    else:
+        file_types = args.types
     
     print("\n" + "=" * 70)
     print("  📚 Document Ingestion")
     print("=" * 70)
-    print(f"  Source Directory: {pdf_dir}")
+    print(f"  Source Directory: {data_dir}")
+    print(f"  File Types: {', '.join(file_types)}")
     print(f"  Vector Store: {settings.vector_store_dir}")
     print(f"  Overwrite Mode: {args.overwrite}")
     print(f"  Embedding Model: {settings.embedding_model}")
@@ -51,7 +66,8 @@ def main():
         # Run ingestion
         print("🔄 Starting ingestion...\n")
         num_docs, num_chunks, filenames = app.ingest_documents(
-            pdf_directory=pdf_dir,
+            directory=data_dir,
+            file_types=file_types,
             overwrite=args.overwrite
         )
         
