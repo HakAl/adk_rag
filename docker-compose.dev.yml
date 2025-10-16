@@ -1,0 +1,54 @@
+version: '3.8'
+
+# Development configuration with hot reload
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: rag-ollama-dev
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data_dev:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+  rag-agent-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rag-agent-dev
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount source code for hot reload
+      - ./app:/app/app
+      - ./config:/app/config
+      - ./scripts:/app/scripts
+      - ./main.py:/app/main.py
+      # Persist data
+      - ./data:/app/data
+      - ./chroma_db:/app/chroma_db
+      - ./logs:/app/logs
+      - ./.env:/app/.env
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - ENVIRONMENT=development
+      - DEBUG=true
+      - LOG_TO_FILE=true
+      - LOG_LEVEL=DEBUG
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: unless-stopped
+    command: python main.py
+
+volumes:
+  ollama_data_dev:
+    driver: local

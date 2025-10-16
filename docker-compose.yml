@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  # Ollama service for local LLM inference
+  ollama:
+    image: ollama/ollama:latest
+    container_name: rag-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    # Remove the deploy section above if you don't have GPU
+
+  # RAG Agent application
+  rag-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rag-agent-app
+    ports:
+      - "8000:8000"  # FastAPI
+    volumes:
+      - ./data:/app/data
+      - ./chroma_db:/app/chroma_db
+      - ./logs:/app/logs
+      - ./.env:/app/.env
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - ENVIRONMENT=production
+      - LOG_TO_FILE=true
+      - LOG_LEVEL=INFO
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: unless-stopped
+    command: >
+      sh -c "
+        echo 'Waiting for Ollama to be ready...' &&
+        sleep 10 &&
+        echo 'Pulling Ollama models...' &&
+        python scripts/pull_models.py &&
+        echo 'Starting RAG Agent...' &&
+        python main.py
+      "
+
+  # Model initialization service (runs once)
+  ollama-init:
+    image: ollama/ollama:latest
+    container_name: rag-ollama-init
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint: >
+      sh -c "
+        echo 'Pulling embedding model...' &&
+        ollama pull nomic-embed-text &&
+        echo 'Pulling chat model...' &&
+        ollama pull llama3.1:8b-instruct-q4_K_M &&
+        echo 'Models pulled successfully!'
+      "
+    restart: "no"
+
+volumes:
+  ollama_data:
+    driver: local

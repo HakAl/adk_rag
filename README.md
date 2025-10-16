@@ -236,37 +236,630 @@ LOG_TO_FILE=true
 6. **Use parallel processing** for faster ingestion
 7. **Enable caching** to avoid reprocessing unchanged files
 
-### Docker Deployment (Optional)
+# Docker Deployment
 
-Create a `Dockerfile`:
+The application includes a complete Docker Compose setup for running the entire stack in containers.
 
-```dockerfile
-FROM python:3.11-slim
+## 🐳 Quick Start with Docker
 
-WORKDIR /app
+### Prerequisites
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+- Docker Engine 20.10+
+- Docker Compose V2
+- (Optional) NVIDIA Docker runtime for GPU support
 
-# Install Ollama
-RUN curl -fsSL https://ollama.com/install.sh | sh
+### 1. Clone and Configure
 
-# Copy application files
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+```bash
+git clone <repository-url>
+cd adk_rag
 
-COPY . .
-
-# Pull models
-RUN ollama serve & \
-    sleep 5 && \
-    ollama pull nomic-embed-text && \
-    ollama pull llama3.1:8b-instruct-q4_K_M
-
-CMD ["python", "main.py"]
+# Copy and configure environment
+cp .env.docker .env
+# Edit .env with your settings (optional)
 ```
+
+### 2. Start the Stack
+
+**Production Mode:**
+```bash
+# Build and start all services
+docker-compose up -d
+
+# Or use Make
+make docker-up
+```
+
+**Development Mode (with hot reload):**
+```bash
+# Use development compose file
+docker-compose -f docker-compose.dev.yml up -d
+
+# Or use Make
+make docker-dev
+```
+
+This will start:
+- **Ollama service** on port 11434
+- **RAG Agent application** on port 8000
+
+### 3. Pull Models (First Time)
+
+The models are pulled automatically on first startup. To manually pull models:
+
+```bash
+# Using docker-compose
+docker-compose exec ollama ollama pull nomic-embed-text
+docker-compose exec ollama ollama pull llama3.1:8b-instruct-q4_K_M
+
+# Or using Make
+make docker-pull-models
+```
+
+### 4. Ingest Documents
+
+```bash
+# Place documents in ./data directory
+mkdir -p data
+cp /path/to/your/pdfs/* data/
+
+# Run ingestion
+docker-compose exec rag-agent python scripts/ingest.py
+
+# Or using Make
+make docker-ingest
+```
+
+### 5. Access the Application
+
+```bash
+# View logs
+docker-compose logs -f rag-agent
+
+# Or using Make
+make docker-logs-app
+```
+
+## 🔧 Development vs Production
+
+### Development Mode
+
+**File**: `docker-compose.dev.yml`
+
+**Features**:
+- Hot reload - code changes reflect immediately
+- Source code mounted as volumes
+- Debug logging enabled
+- Faster iteration
+
+**Usage**:
+```bash
+# Start development environment
+docker-compose -f docker-compose.dev.yml up
+
+# Stop
+docker-compose -f docker-compose.dev.yml down
+
+# View logs
+docker-compose -f docker-compose.dev.yml logs -f
+
+# Rebuild after dependency changes
+docker-compose -f docker-compose.dev.yml up --build
+```
+
+**When to use**: Local development, testing changes
+
+### Production Mode
+
+**File**: `docker-compose.yml`
+
+**Features**:
+- Optimized for performance
+- Production logging
+- Automatic restarts
+- Resource limits
+- Health checks
+
+**Usage**:
+```bash
+# Start production environment
+docker-compose up -d
+
+# Stop
+docker-compose down
+
+# View logs
+docker-compose logs -f
+```
+
+**When to use**: Deployment, production environments
+
+## 🛠️ Docker Commands
+
+### Development Mode Commands
+
+```bash
+# Start development environment (with logs visible)
+docker-compose -f docker-compose.dev.yml up
+# Or: make docker-dev
+
+# Start in background
+docker-compose -f docker-compose.dev.yml up -d
+# Or: make docker-dev-up
+
+# Stop services
+docker-compose -f docker-compose.dev.yml down
+# Or: make docker-dev-down
+
+# View logs
+docker-compose -f docker-compose.dev.yml logs -f
+# Or: make docker-dev-logs
+
+# Restart after code changes (usually not needed with hot reload)
+docker-compose -f docker-compose.dev.yml restart
+# Or: make docker-dev-restart
+
+# Access shell
+docker-compose -f docker-compose.dev.yml exec rag-agent-dev /bin/bash
+# Or: make docker-dev-shell
+
+# Clean up everything
+docker-compose -f docker-compose.dev.yml down -v
+# Or: make docker-dev-clean
+
+# Complete development setup
+make docker-dev-setup
+```
+
+### Production Mode Commands
+
+```bash
+# Start services
+docker-compose up -d
+# Or: make docker-up
+
+# Stop services
+docker-compose down
+# Or: make docker-down
+
+# View logs
+docker-compose logs -f
+# Or: make docker-logs
+
+# View specific service logs
+docker-compose logs -f rag-agent
+# Or: make docker-logs-app
+
+docker-compose logs -f ollama
+# Or: make docker-logs-ollama
+
+# Restart services
+docker-compose restart
+# Or: make docker-restart
+
+# Access shell in container
+docker-compose exec rag-agent /bin/bash
+# Or: make docker-shell
+
+docker-compose exec ollama /bin/bash
+# Or: make docker-shell-ollama
+
+# Run ingestion
+docker-compose exec rag-agent python scripts/ingest.py
+# Or: make docker-ingest
+
+# View container stats
+docker stats rag-agent-app rag-ollama
+# Or: make docker-stats
+
+# Complete production setup
+make docker-setup
+```
+
+### Common Tasks
+
+#### 1. Working on Code (Development)
+
+```bash
+# Start dev environment
+make docker-dev
+
+# Edit code in your editor - changes auto-reload!
+# No need to rebuild or restart
+
+# View logs to see changes
+make docker-dev-logs
+```
+
+#### 2. Testing Changes
+
+```bash
+# Start dev environment
+make docker-dev-up
+
+# Run tests inside container
+docker-compose -f docker-compose.dev.yml exec rag-agent-dev pytest
+
+# Or run ingestion
+docker-compose -f docker-compose.dev.yml exec rag-agent-dev python scripts/ingest.py
+```
+
+#### 3. Deploying to Production
+
+```bash
+# Build production images
+make docker-build
+
+# Start production stack
+make docker-up
+
+# Check logs
+make docker-logs
+
+# Monitor resources
+make docker-stats
+```
+
+#### 4. Switching Between Modes
+
+```bash
+# Stop development
+make docker-dev-down
+
+# Start production
+make docker-up
+
+# Or vice versa
+make docker-down
+make docker-dev-up
+```
+
+## 📂 Volume Mounts
+
+The Docker setup uses the following volume mounts:
+
+```yaml
+volumes:
+  - ./data:/app/data              # Document directory
+  - ./chroma_db:/app/chroma_db    # Vector store persistence
+  - ./logs:/app/logs              # Application logs
+  - ./.env:/app/.env              # Environment configuration
+  - ollama_data:/root/.ollama     # Ollama models (Docker volume)
+```
+
+**Benefits:**
+- Documents persist on host
+- Vector store survives container restarts
+- Easy access to logs
+- Models persist across rebuilds
+
+## 🎮 GPU Support
+
+### With NVIDIA GPU
+
+The docker-compose.yml includes GPU support for faster inference:
+
+```yaml
+deploy:
+  resources:
+    reservations:
+      devices:
+        - driver: nvidia
+          count: all
+          capabilities: [gpu]
+```
+
+**Prerequisites:**
+```bash
+# Install NVIDIA Container Toolkit
+distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
+curl -s -L https://nvidia.github.io/nvidia-docker/gpgkey | sudo apt-key add -
+curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list | \
+  sudo tee /etc/apt/sources.list.d/nvidia-docker.list
+
+sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit
+sudo systemctl restart docker
+```
+
+### Without GPU
+
+If you don't have a GPU, remove the `deploy` section from the `ollama` service in `docker-compose.yml`:
+
+```yaml
+# Comment out or remove these lines:
+# deploy:
+#   resources:
+#     reservations:
+#       devices:
+#         - driver: nvidia
+#           count: all
+#           capabilities: [gpu]
+```
+
+## 🔧 Configuration
+
+### Environment Variables
+
+Configure the application by editing `.env`:
+
+```bash
+# Application Settings
+ENVIRONMENT=production
+DEBUG=false
+LOG_LEVEL=INFO
+LOG_TO_FILE=true
+
+# Ollama (container networking)
+OLLAMA_BASE_URL=http://ollama:11434
+
+# Models
+EMBEDDING_MODEL=nomic-embed-text
+CHAT_MODEL=llama3.1:8b-instruct-q4_K_M
+
+# Optional: External providers
+ANTHROPIC_API_KEY=your-key
+GOOGLE_API_KEY=your-key
+```
+
+### Custom Configuration
+
+Edit `docker-compose.yml` to customize:
+
+```yaml
+services:
+  rag-agent:
+    environment:
+      - RETRIEVAL_K=5
+      - CHUNK_SIZE=1024
+      - LOG_LEVEL=DEBUG
+```
+
+## 📊 Monitoring
+
+### View Logs
+
+```bash
+# All services
+docker-compose logs -f
+
+# Specific service
+docker-compose logs -f rag-agent
+docker-compose logs -f ollama
+
+# Last 100 lines
+docker-compose logs --tail=100 rag-agent
+```
+
+### Check Service Health
+
+```bash
+# Check if services are running
+docker-compose ps
+
+# Check Ollama health
+curl http://localhost:11434/api/tags
+
+# Check app health (if API enabled)
+curl http://localhost:8000/health
+```
+
+### Resource Usage
+
+```bash
+# Real-time stats
+docker stats rag-agent-app rag-ollama
+
+# Or using Make
+make docker-stats
+```
+
+## 🔄 Updates and Maintenance
+
+### Update Application Code
+
+```bash
+# Pull latest code
+git pull
+
+# Rebuild and restart
+docker-compose down
+docker-compose up -d --build
+```
+
+### Update Models
+
+```bash
+# Pull latest models
+docker-compose exec ollama ollama pull nomic-embed-text
+docker-compose exec ollama ollama pull llama3.1:8b-instruct-q4_K_M
+
+# Restart application
+docker-compose restart rag-agent
+```
+
+### Backup Data
+
+```bash
+# Backup vector store
+tar -czf chroma_backup_$(date +%Y%m%d).tar.gz chroma_db/
+
+# Backup Ollama models (from volume)
+docker run --rm -v rag_ollama_data:/data -v $(pwd):/backup \
+  alpine tar czf /backup/ollama_backup_$(date +%Y%m%d).tar.gz /data
+```
+
+### Clean Up
+
+```bash
+# Stop and remove containers
+docker-compose down
+
+# Remove containers and volumes
+docker-compose down -v
+
+# Complete cleanup
+make docker-clean
+```
+
+## 🚀 Production Deployment
+
+### Recommended Production Setup
+
+1. **Use a reverse proxy** (nginx/Traefik) for SSL/TLS
+2. **Set resource limits** in docker-compose.yml:
+
+```yaml
+services:
+  rag-agent:
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+```
+
+3. **Enable log rotation**:
+
+```yaml
+logging:
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+```
+
+4. **Use Docker secrets** for API keys instead of .env file
+5. **Implement monitoring** (Prometheus, Grafana)
+6. **Set up automated backups** for vector store
+
+### Production docker-compose.yml Example
+
+```yaml
+version: '3.8'
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  rag-agent:
+    build: .
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+```
+
+## 🐛 Troubleshooting
+
+### Services Won't Start
+
+```bash
+# Check logs
+docker-compose logs
+
+# Check if ports are in use
+lsof -i :11434
+lsof -i :8000
+
+# Restart services
+docker-compose restart
+```
+
+### Models Not Loading
+
+```bash
+# Check Ollama service
+docker-compose exec ollama ollama list
+
+# Manually pull models
+docker-compose exec ollama ollama pull nomic-embed-text
+
+# Check Ollama logs
+docker-compose logs ollama
+```
+
+### Out of Memory
+
+```bash
+# Check resource usage
+docker stats
+
+# Increase memory limits in docker-compose.yml
+# Or allocate more RAM to Docker Desktop
+```
+
+### Permission Issues
+
+```bash
+# Fix volume permissions
+sudo chown -R $USER:$USER data/ chroma_db/ logs/
+
+# Or run with specific user
+docker-compose exec -u root rag-agent chown -R app:app /app
+```
+
+## 📝 Docker Architecture
+
+```
+┌─────────────────────────────────────────┐
+│          Docker Compose Stack           │
+├─────────────────────────────────────────┤
+│                                         │
+│  ┌─────────────┐    ┌───────────────┐  │
+│  │   Ollama    │◄───┤   RAG Agent   │  │
+│  │   Service   │    │  Application  │  │
+│  │             │    │               │  │
+│  │ Port: 11434 │    │  Port: 8000   │  │
+│  └──────┬──────┘    └───────┬───────┘  │
+│         │                   │          │
+│         │                   │          │
+│  ┌──────▼──────┐    ┌───────▼───────┐  │
+│  │   Ollama    │    │  ChromaDB     │  │
+│  │   Models    │    │  Vector Store │  │
+│  │  (Volume)   │    │  (Host Mount) │  │
+│  └─────────────┘    └───────────────┘  │
+│                                         │
+└─────────────────────────────────────────┘
+         │                   │
+         │                   │
+    Host Network        Host Filesystem
+```
+
+## 🎯 Next Steps
+
+After deployment:
+
+1. ✅ Verify services are running: `docker-compose ps`
+2. ✅ Check logs: `make docker-logs`
+3. ✅ Place documents in `./data`
+4. ✅ Run ingestion: `make docker-ingest`
+5. ✅ Start using the application!
 
 ## 🧪 Testing
 
