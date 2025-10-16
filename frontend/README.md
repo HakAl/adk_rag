@@ -1,6 +1,6 @@
-# RAG Agent Frontend
+# VIBE Agent Frontend
 
-React + TypeScript frontend for the RAG Agent API.
+React + TypeScript frontend for the VIBE Agent API.
 
 ## Setup
 
