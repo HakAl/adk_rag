@@ -1,97 +1,140 @@
 """
-Document ingestion script.
+Document ingestion script for RAG Agent.
+Supports PDF, CSV, JSONL, and Parquet files.
 """
-import sys
 import argparse
+import sys
 from pathlib import Path
+from typing import List, Dict, Any
 
-from config import settings, logger
-from app.core.application import RAGAgentApp
+try:
+    import pandas as pd
+    from pypdf import PdfReader
+    import json
+except ImportError as e:
+    print(f"Missing required package: {e}")
+    sys.exit(1)
+
+
+def read_pdf(file_path: Path) -> List[Dict[str, Any]]:
+    """Read PDF file and return documents."""
+    documents = []
+    reader = PdfReader(file_path)
+    for page_num, page in enumerate(reader.pages):
+        text = page.extract_text()
+        documents.append({
+            "content": text,
+            "metadata": {"source": str(file_path), "page": page_num}
+        })
+    return documents
+
+
+def read_csv(file_path: Path) -> List[Dict[str, Any]]:
+    """Read CSV file and return documents."""
+    df = pd.read_csv(file_path)
+    documents = []
+    for idx, row in df.iterrows():
+        documents.append({
+            "content": " ".join([f"{k}: {v}" for k, v in row.items()]),
+            "metadata": {"source": str(file_path), "row": idx}
+        })
+    return documents
+
+
+def read_jsonl(file_path: Path) -> List[Dict[str, Any]]:
+    """Read JSONL file and return documents."""
+    documents = []
+    with open(file_path, 'r') as f:
+        for idx, line in enumerate(f):
+            data = json.loads(line)
+            content = data.get("content") or data.get("text") or str(data)
+            documents.append({
+                "content": content,
+                "metadata": {"source": str(file_path), "line": idx}
+            })
+    return documents
+
+
+def read_parquet(file_path: Path) -> List[Dict[str, Any]]:
+    """Read Parquet file and return documents."""
+    df = pd.read_parquet(file_path)
+    documents = []
+    for idx, row in df.iterrows():
+        documents.append({
+            "content": " ".join([f"{k}: {v}" for k, v in row.items()]),
+            "metadata": {"source": str(file_path), "row": idx}
+        })
+    return documents
+
+
+def ingest_documents(directory: Path, file_types: List[str], overwrite: bool = False):
+    """Ingest documents from directory."""
+    file_readers = {
+        "pdf": (read_pdf, "*.pdf"),
+        "csv": (read_csv, "*.csv"),
+        "jsonl": (read_jsonl, "*.jsonl"),
+        "parquet": (read_parquet, "*.parquet"),
+    }
+
+    all_documents = []
+
+    for file_type in file_types:
+        if file_type not in file_readers:
+            print(f"Unknown file type: {file_type}")
+            continue
+
+        reader_func, pattern = file_readers[file_type]
+        files = list(directory.glob(pattern))
+
+        print(f"Found {len(files)} {file_type} files")
+
+        for file_path in files:
+            print(f"Processing: {file_path.name}")
+            try:
+                docs = reader_func(file_path)
+                all_documents.extend(docs)
+                print(f"  Added {len(docs)} documents")
+            except Exception as e:
+                print(f"  Error: {e}")
+
+    print(f"\nTotal documents ingested: {len(all_documents)}")
+    return all_documents
 
 
 def main():
-    """Main entry point for ingestion script."""
-    parser = argparse.ArgumentParser(
-        description="Ingest documents (PDF, CSV, JSONL) into the RAG knowledge base"
+    """Main entry point."""
+    parser = argparse.ArgumentParser(description="Ingest documents into RAG system")
+    parser.add_argument(
+        "--directory",
+        type=Path,
+        default=Path("data"),
+        help="Directory containing documents"
     )
     parser.add_argument(
-        '--directory',
-        type=str,
-        default=None,
-        help=f'Directory containing documents (default: {settings.data_dir})'
+        "--types",
+        nargs="+",
+        choices=["pdf", "csv", "jsonl", "parquet", "all"],
+        default=["all"],
+        help="File types to ingest"
     )
     parser.add_argument(
-        '--types',
-        type=str,
-        nargs='+',
-        choices=['pdf', 'csv', 'jsonl', 'all'],
-        default=['all'],
-        help='File types to ingest (default: all)'
+        "--overwrite",
+        action="store_true",
+        help="Overwrite existing vector store"
     )
-    parser.add_argument(
-        '--overwrite',
-        action='store_true',
-        help='Overwrite existing vector store collection'
-    )
-    
+
     args = parser.parse_args()
-    
-    # Determine directory
-    data_dir = Path(args.directory) if args.directory else settings.data_dir
-    
-    if not data_dir.exists():
-        print(f"\n❌ Error: Directory '{data_dir}' does not exist\n")
-        sys.exit(1)
-    
-    # Determine file types
-    if 'all' in args.types:
-        file_types = ['pdf', 'csv', 'jsonl']
+
+    if "all" in args.types:
+        file_types = ["pdf", "csv", "jsonl", "parquet"]
     else:
         file_types = args.types
-    
-    print("\n" + "=" * 70)
-    print("  📚 Document Ingestion")
-    print("=" * 70)
-    print(f"  Source Directory: {data_dir}")
-    print(f"  File Types: {', '.join(file_types)}")
-    print(f"  Vector Store: {settings.vector_store_dir}")
-    print(f"  Overwrite Mode: {args.overwrite}")
-    print(f"  Embedding Model: {settings.embedding_model}")
-    print("=" * 70 + "\n")
-    
-    try:
-        # Initialize application
-        app = RAGAgentApp()
-        
-        # Run ingestion
-        print("🔄 Starting ingestion...\n")
-        num_docs, num_chunks, filenames = app.ingest_documents(
-            directory=data_dir,
-            file_types=file_types,
-            overwrite=args.overwrite
-        )
-        
-        # Print summary
-        print("\n" + "=" * 70)
-        print("  ✅ Ingestion Complete!")
-        print("=" * 70)
-        print(f"  Documents Processed: {num_docs}")
-        print(f"  Text Chunks Created: {num_chunks}")
-        print(f"\n  Files:")
-        for filename in filenames:
-            print(f"    • {filename}")
-        print("=" * 70 + "\n")
-        
-        # Show stats
-        stats = app.get_stats()
-        vs_stats = stats['vector_store']
-        print(f"  📊 Total chunks in vector store: {vs_stats['count']}")
-        print(f"  🎯 Ready for queries!\n")
-        
-    except Exception as e:
-        logger.error(f"Ingestion error: {e}")
-        print(f"\n❌ Error during ingestion: {e}\n")
+
+    if not args.directory.exists():
+        print(f"Error: Directory {args.directory} does not exist")
         sys.exit(1)
+
+    ingest_documents(args.directory, file_types, args.overwrite)
 
 
 if __name__ == "__main__":

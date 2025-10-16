@@ -2,7 +2,7 @@
 
 A maintainable, production-ready Python application for Retrieval-Augmented Generation (RAG) using Google's Agent Development Kit (ADK) and Ollama for local LLM inference.
 
-**Supports multiple document formats**: PDF, CSV, and JSONL files.
+**Supports multiple document formats**: PDF, CSV, JSONL, and Parquet files.
 
 ## 🏗️ Architecture
 
@@ -83,6 +83,7 @@ Place your documents in the `data/` directory:
 - PDF files (`.pdf`)
 - CSV files (`.csv`)
 - JSONL files (`.jsonl`)
+- Parquet files (`.parquet`)
 
 Then run:
 
@@ -91,7 +92,7 @@ Then run:
 python scripts/ingest.py
 
 # Ingest specific file types
-python scripts/ingest.py --types pdf csv jsonl
+python scripts/ingest.py --types pdf csv jsonl parquet
 
 # Ingest from custom directory
 python scripts/ingest.py --directory /path/to/documents
@@ -99,12 +100,12 @@ python scripts/ingest.py --directory /path/to/documents
 
 Options:
 - `--directory PATH`: Specify a different data directory
-- `--types TYPE [TYPE ...]`: Specify file types (pdf, csv, jsonl, or all)
+- `--types TYPE [TYPE ...]`: Specify file types (pdf, csv, jsonl, parquet, or all)
 - `--overwrite`: Replace existing vector store collection
 
 Example:
 ```bash
-python scripts/ingest.py --directory /path/to/docs --types csv jsonl --overwrite
+python scripts/ingest.py --directory /path/to/docs --types csv parquet --overwrite
 ```
 
 **See [CSV and JSONL Guide](docs/CSV_JSONL_GUIDE.md) for detailed format documentation.**

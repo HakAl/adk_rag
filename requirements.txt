@@ -13,6 +13,7 @@ langchain-ollama>=0.1.0
 # Document processing
 pypdf>=3.17.0
 sentence-transformers>=2.2.2
+pyarrow>=14.0.0
 
 # Vector store
 chromadb>=0.4.22
