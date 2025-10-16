@@ -63,6 +63,8 @@ source venv/bin/activate
 3. **Install dependencies**
 ```bash
 pip install -r requirements.txt
+
+pip install -e .
 ```
 
 4. **Download Ollama models**
@@ -403,17 +405,185 @@ python scripts/ingest.py --workers 8
 python scripts/ingest.py --batch-mode --batch-size 50
 ```
 
-## 📝 Next Steps
+## 🌐 FastAPI REST API
 
-This application is ready to be extended with:
+The application now includes a REST API for programmatic access.
 
-1. **Flask REST API** - Add API endpoints for web/mobile clients
-2. **React Frontend** - Build a modern web interface
-3. **Authentication** - Add user management
-4. **Multi-tenancy** - Support multiple users/organizations
-5. **Advanced RAG** - Implement hybrid search, re-ranking
-6. **Observability** - Add Prometheus metrics, OpenTelemetry
-7. **GPU Acceleration** - Support GPU for embeddings
+### Starting the API Server
+
+```bash
+# Start the API server
+python run_api.py
+
+# Or with uvicorn directly
+uvicorn app.api.main:app --reload
+```
+
+The API will be available at `http://localhost:8000`
+
+### API Documentation
+
+Once the server is running, visit:
+- **Interactive API docs**: http://localhost:8000/docs
+- **Alternative docs**: http://localhost:8000/redoc
+
+### API Endpoints
+
+#### Health Check
+```bash
+GET /health
+```
+
+Response:
+```json
+{
+  "status": "healthy",
+  "version": "1.0.0"
+}
+```
+
+#### Get Statistics
+```bash
+GET /stats
+```
+
+Response:
+```json
+{
+  "app_name": "RAG Agent",
+  "version": "1.0.0",
+  "environment": "development",
+  "vector_store": {
+    "status": "ready",
+    "count": 100,
+    "collection": "adk_local_rag"
+  },
+  "models": {
+    "embedding": "nomic-embed-text",
+    "chat": "llama3.1:8b-instruct-q4_K_M"
+  }
+}
+```
+
+#### Create Session
+```bash
+POST /sessions
+Content-Type: application/json
+
+{
+  "user_id": "my_user"  // optional, defaults to "api_user"
+}
+```
+
+Response:
+```json
+{
+  "session_id": "550e8400-e29b-41d4-a716-446655440000",
+  "user_id": "my_user"
+}
+```
+
+#### Chat
+```bash
+POST /chat
+Content-Type: application/json
+
+{
+  "message": "What is machine learning?",
+  "user_id": "my_user",
+  "session_id": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+Response:
+```json
+{
+  "response": "Machine learning is a subset of artificial intelligence...",
+  "session_id": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+### Example Usage with Python
+
+```python
+import requests
+
+# Base URL
+BASE_URL = "http://localhost:8000"
+
+# Check health
+response = requests.get(f"{BASE_URL}/health")
+print(response.json())
+
+# Create a session
+response = requests.post(f"{BASE_URL}/sessions", json={"user_id": "test_user"})
+session_data = response.json()
+session_id = session_data["session_id"]
+
+# Send a message
+response = requests.post(f"{BASE_URL}/chat", json={
+    "message": "What is Python?",
+    "user_id": "test_user",
+    "session_id": session_id
+})
+print(response.json()["response"])
+```
+
+### Example Usage with cURL
+
+```bash
+# Health check
+curl http://localhost:8000/health
+
+# Create session
+curl -X POST http://localhost:8000/sessions \
+  -H "Content-Type: application/json" \
+  -d '{"user_id": "test_user"}'
+
+# Chat
+curl -X POST http://localhost:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "What is AI?",
+    "user_id": "test_user",
+    "session_id": "YOUR_SESSION_ID"
+  }'
+```
+
+### Running Tests
+
+```bash
+# Run API tests
+pytest tests/test_api.py -v
+
+# Run all tests
+pytest tests/ -v
+```
+
+### CORS Configuration
+
+By default, CORS is enabled for all origins. For production, configure appropriately in `app/api/main.py`:
+
+```python
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://yourdomain.com"],  # Specific domains
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+```
+
+### Security Considerations
+
+For production deployment:
+1. **Add authentication** (JWT, API keys, OAuth2)
+2. **Configure CORS** to specific origins
+3. **Add rate limiting** to prevent abuse
+4. **Use HTTPS** with proper TLS certificates
+5. **Validate and sanitize** all inputs
+6. **Implement logging** for security events
+
 
 ## 📄 License
 
