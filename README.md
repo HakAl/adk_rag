@@ -1,6 +1,6 @@
-# VIBE Agent - Production-Ready Python Application
+# VIBE Agent
 
-A maintainable, production-ready Python application for Retrieval-Augmented Generation (RAG) using Google's Agent Development Kit (ADK) and Ollama for local LLM inference.
+A maintainable, Python application for Retrieval-Augmented Generation (RAG) using Google's Agent Development Kit (ADK) and Ollama for local LLM inference.
 
 **Supports multiple document formats**: PDF, CSV, JSONL, and Parquet files.
 
@@ -584,6 +584,102 @@ For production deployment:
 5. **Validate and sanitize** all inputs
 6. **Implement logging** for security events
 
+
+# Multi-Provider RAG Support
+
+The ADK RAG agent now supports multiple LLM providers for enhanced flexibility and performance.
+
+## Available Providers
+
+### 1. **Local (Ollama)** - Default
+- Fast, private, runs locally
+- No API costs
+- Always available
+
+### 2. **Anthropic Claude** - Optional
+- Best for complex reasoning and analysis
+- Superior nuanced understanding
+- Requires API key
+
+### 3. **Google Gemini** - Optional
+- Fast responses
+- Excellent for factual queries and summaries
+- Requires API key
+
+## Configuration
+
+### Step 1: Install Dependencies
+
+```bash
+pip install anthropic google-generativeai
+```
+
+### Step 2: Set API Keys
+
+Add to your `.env` file:
+
+```bash
+# Anthropic (optional)
+ANTHROPIC_API_KEY=your_anthropic_key_here
+ANTHROPIC_MODEL=claude-sonnet-4-20250514
+
+# Google (optional)
+GOOGLE_API_KEY=your_google_key_here
+GOOGLE_MODEL=gemini-2.0-flash-exp
+```
+
+### Step 3: Run the Application
+
+```bash
+python main.py
+```
+
+The application will automatically detect and enable available providers based on your API keys.
+
+## How It Works
+
+The ADK agent intelligently routes queries to the most appropriate provider:
+
+- **Simple factual questions** → Local Ollama or Google Gemini (fast)
+- **Complex analysis/reasoning** → Anthropic Claude (best quality)
+- **Technical deep-dives** → Anthropic Claude
+- **Quick summaries** → Google Gemini or Local Ollama
+
+## Direct Provider Selection
+
+You can also query a specific provider directly:
+
+```python
+from app.core.application import RAGAgentApp
+
+app = RAGAgentApp()
+
+# Use local provider
+answer, sources = app.query_rag("What is X?", provider="local")
+
+# Use Anthropic
+answer, sources = app.query_rag("Analyze Y", provider="anthropic")
+
+# Use Google
+answer, sources = app.query_rag("Summarize Z", provider="google")
+```
+
+## Check Available Providers
+
+```python
+app = RAGAgentApp()
+stats = app.get_stats()
+print(stats['providers'])
+# Output: {'local': True, 'anthropic': True, 'google': True}
+```
+
+## Cost Considerations
+
+- **Local (Ollama)**: Free, requires local compute
+- **Anthropic**: Pay per token ([pricing](https://www.anthropic.com/pricing))
+- **Google**: Pay per token ([pricing](https://ai.google.dev/pricing))
+
+The agent uses local provider by default to minimize costs, only routing to external providers when beneficial for query quality.
 
 ## 📄 License
 

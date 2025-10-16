@@ -30,3 +30,9 @@ pydantic>=2.0.0
 pytest>=7.4.0
 pytest-asyncio>=0.21.0
 httpx>=0.25.0
+
+# Anthropic Provider
+anthropic>=0.39.0
+
+# Google Provider
+google-generativeai>=0.8.0
