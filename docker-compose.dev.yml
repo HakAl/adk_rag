@@ -11,6 +11,12 @@ services:
       - ollama_data_dev:/root/.ollama
     environment:
       - OLLAMA_HOST=0.0.0.0
+    deploy:
+      resources:
+        # Lighter resource limits for development
+        limits:
+          cpus: '2'
+          memory: 4G
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
       interval: 30s
@@ -18,11 +24,13 @@ services:
       retries: 5
       start_period: 60s
     restart: unless-stopped
+    networks:
+      - rag-network-dev
 
   rag-agent-dev:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     container_name: rag-agent-dev
     ports:
       - "8000:8000"
@@ -32,6 +40,7 @@ services:
       - ./config:/app/config
       - ./scripts:/app/scripts
       - ./main.py:/app/main.py
+      - ./run_api.py:/app/run_api.py
       # Persist data
       - ./data:/app/data
       - ./chroma_db:/app/chroma_db
@@ -43,12 +52,23 @@ services:
       - DEBUG=true
       - LOG_TO_FILE=true
       - LOG_LEVEL=DEBUG
+      - PYTHONUNBUFFERED=1
     depends_on:
       ollama:
         condition: service_healthy
     restart: unless-stopped
+    networks:
+      - rag-network-dev
     command: python main.py
+    # Alternative command for API mode:
+    # command: python run_api.py
+    stdin_open: true
+    tty: true
 
 volumes:
   ollama_data_dev:
     driver: local
+
+networks:
+  rag-network-dev:
+    driver: bridge

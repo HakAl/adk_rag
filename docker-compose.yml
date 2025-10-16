@@ -11,6 +11,20 @@ services:
       - ollama_data:/root/.ollama
     environment:
       - OLLAMA_HOST=0.0.0.0
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+        reservations:
+          cpus: '2'
+          memory: 4G
+        # Uncomment for GPU support
+        # reservations:
+        #   devices:
+        #     - driver: nvidia
+        #       count: all
+        #       capabilities: [gpu]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
       interval: 30s
@@ -18,14 +32,8 @@ services:
       retries: 5
       start_period: 60s
     restart: unless-stopped
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    # Remove the deploy section above if you don't have GPU
+    networks:
+      - rag-network
 
   # RAG Agent application
   rag-agent:
@@ -34,7 +42,7 @@ services:
       dockerfile: Dockerfile
     container_name: rag-agent-app
     ports:
-      - "8000:8000"  # FastAPI
+      - "8000:8000"
     volumes:
       - ./data:/app/data
       - ./chroma_db:/app/chroma_db
@@ -43,43 +51,39 @@ services:
     environment:
       - OLLAMA_BASE_URL=http://ollama:11434
       - ENVIRONMENT=production
+      - DEBUG=false
       - LOG_TO_FILE=true
       - LOG_LEVEL=INFO
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
     depends_on:
       ollama:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     restart: unless-stopped
-    command: >
-      sh -c "
-        echo 'Waiting for Ollama to be ready...' &&
-        sleep 10 &&
-        echo 'Pulling Ollama models...' &&
-        python scripts/pull_models.py &&
-        echo 'Starting RAG Agent...' &&
-        python main.py
-      "
-
-  # Model initialization service (runs once)
-  ollama-init:
-    image: ollama/ollama:latest
-    container_name: rag-ollama-init
-    volumes:
-      - ollama_data:/root/.ollama
-    environment:
-      - OLLAMA_HOST=http://ollama:11434
-    depends_on:
-      ollama:
-        condition: service_healthy
-    entrypoint: >
-      sh -c "
-        echo 'Pulling embedding model...' &&
-        ollama pull nomic-embed-text &&
-        echo 'Pulling chat model...' &&
-        ollama pull llama3.1:8b-instruct-q4_K_M &&
-        echo 'Models pulled successfully!'
-      "
-    restart: "no"
+    networks:
+      - rag-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   ollama_data:
     driver: local
+
+networks:
+  rag-network:
+    driver: bridge
