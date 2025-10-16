@@ -1,0 +1,6 @@
+title,content,category,author
+Introduction to Machine Learning,Machine learning is a subset of artificial intelligence that focuses on the development of algorithms that can learn from and make predictions on data.,AI,John Doe
+Deep Learning Fundamentals,Deep learning uses neural networks with multiple layers to progressively extract higher-level features from raw input.,AI,Jane Smith
+Natural Language Processing,NLP is a field of AI that gives computers the ability to understand text and spoken words in much the same way humans can.,NLP,Bob Johnson
+Computer Vision Basics,Computer vision enables computers to derive meaningful information from digital images and videos.,Vision,Alice Williams
+Reinforcement Learning,Reinforcement learning is an area of machine learning where an agent learns to make decisions by performing actions in an environment.,AI,Charlie Brown

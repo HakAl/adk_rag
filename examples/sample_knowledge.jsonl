@@ -1,0 +1,8 @@
+{"text": "Python is a high-level, interpreted programming language with dynamic semantics. Its high-level built-in data structures make it attractive for rapid application development.", "topic": "programming", "difficulty": "beginner"}
+{"text": "Docker is a platform designed to help developers build, share, and run modern applications. It handles the tedious setup so you can focus on the code.", "topic": "devops", "difficulty": "intermediate"}
+{"text": "Kubernetes is an open-source system for automating deployment, scaling, and management of containerized applications.", "topic": "devops", "difficulty": "advanced"}
+{"text": "Git is a distributed version control system that tracks changes in source code during software development. It's designed for coordinating work among programmers.", "topic": "tools", "difficulty": "beginner"}
+{"text": "REST APIs use HTTP methods like GET, POST, PUT, and DELETE to perform CRUD operations on resources. They are stateless and follow standard HTTP protocols.", "topic": "web", "difficulty": "intermediate"}
+{"text": "GraphQL is a query language for APIs that gives clients the power to ask for exactly what they need and nothing more, making APIs fast, flexible, and developer-friendly.", "topic": "web", "difficulty": "intermediate"}
+{"content": "MongoDB is a document database designed for ease of application development and scaling. It stores data in flexible, JSON-like documents.", "category": "database", "level": "intermediate"}
+{"content": "PostgreSQL is a powerful, open source object-relational database system with over 35 years of active development.", "category": "database", "level": "advanced"}

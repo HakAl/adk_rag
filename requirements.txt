@@ -1,15 +1,22 @@
-# Google libraries (useful for ADK and potential cloud integrations)
-google-generativeai
-google-cloud-aiplatform
+# Core Google ADK and AI packages
+google-adk>=0.1.0
+google-generativeai>=0.3.0
+google-cloud-aiplatform>=1.40.0
 
-# Core libraries for local RAG and model interaction
-google-adk
-litellm
-langchain
-langchain-community
-langchain-chroma
-langchain-ollama
+# LLM and embeddings
+litellm>=1.30.0
+langchain>=0.1.0
+langchain-community>=0.0.20
+langchain-chroma>=0.1.0
+langchain-ollama>=0.1.0
 
-# Document loading and embedding utilities
-pypdf
-sentence-transformers
+# Document processing
+pypdf>=3.17.0
+sentence-transformers>=2.2.2
+pyarrow>=14.0.0
+
+# Vector store
+chromadb>=0.4.22
+
+# Utilities
+python-dotenv>=1.0.0

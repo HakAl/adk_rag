@@ -1,17 +1,8 @@
-# --- Python ---
-# Virtual environment folders
-venv/
-.venv/
-env/
-.env/
-
-# Byte-compiled / optimized / C extensions
+# Python
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
-
-# Distribution / packaging
+*.py[cod]
+*$py.class
+*.so
 .Python
 build/
 develop-eggs/
@@ -28,42 +19,42 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-MANIFEST
 
-# --- Project-Specific ---
-# Local vector database (can be very large)
-chroma_db/
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
 
-# Source data - It's often better to not commit large datasets.
-# Add a .gitkeep file to the 'data/' folder to commit the empty directory.
-data/*
-!data/.gitkeep
-
-# Environment variables file
-.env
-
-# --- IDEs & Editors ---
-# Visual Studio Code
+# IDE
 .vscode/
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
-
-# JetBrains / PyCharm
 .idea/
+*.swp
+*.swo
+*~
 
-# Sublime Text
-*.sublime-project
-*.sublime-workspace
+# Environment variables
+.env
+.env.local
 
-# --- Operating Systems ---
-# macOS
+# Data and logs
+data/*
+chroma_db/
+logs/
+*.log
+
+# OS
 .DS_Store
-.AppleDouble
-.LSOverride
-
-# Windows
 Thumbs.db
-ehthumbs.db
-Desktop.ini
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Ingestion cache
+.ingest_cache.json
+
+# Keep data directory but ignore PDFs
+!data/.gitkeep
