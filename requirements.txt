@@ -18,5 +18,8 @@ pyarrow>=14.0.0
 # Vector store
 chromadb>=0.4.22
 
+# CLI
+prompt_toolkit>=3.0.0
+
 # Utilities
 python-dotenv>=1.0.0
