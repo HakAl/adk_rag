@@ -4,6 +4,8 @@ A maintainable, production-ready Python application for Retrieval-Augmented Gene
 
 **Supports multiple document formats**: PDF, CSV, JSONL, and Parquet files.
 
+**Performance Optimizations**: Parallel processing, batch processing, lazy loading, file caching, and memory optimization.
+
 ## 🏗️ Architecture
 
 This application follows clean architecture principles with clear separation of concerns:
@@ -88,7 +90,7 @@ Place your documents in the `data/` directory:
 Then run:
 
 ```bash
-# Ingest all supported file types
+# Basic ingestion (parallel, with caching)
 python scripts/ingest.py
 
 # Ingest specific file types
@@ -96,19 +98,44 @@ python scripts/ingest.py --types pdf csv jsonl parquet
 
 # Ingest from custom directory
 python scripts/ingest.py --directory /path/to/documents
+
+# Use more workers for faster processing
+python scripts/ingest.py --workers 8
+
+# Batch mode for memory-efficient processing
+python scripts/ingest.py --batch-mode --batch-size 50
+
+# Disable caching to reprocess all files
+python scripts/ingest.py --no-cache
+
+# Overwrite existing vector store
+python scripts/ingest.py --overwrite
 ```
 
-Options:
+**Performance Options:**
 - `--directory PATH`: Specify a different data directory
 - `--types TYPE [TYPE ...]`: Specify file types (pdf, csv, jsonl, parquet, or all)
+- `--workers N`: Number of parallel workers (default: 4)
+- `--batch-mode`: Use batch processing for memory efficiency
+- `--batch-size N`: Batch size for batch mode (default: 100)
+- `--no-cache`: Disable file caching (process all files)
 - `--overwrite`: Replace existing vector store collection
 
-Example:
-```bash
-python scripts/ingest.py --directory /path/to/docs --types csv parquet --overwrite
-```
+**Example Workflows:**
 
-**See [CSV and JSONL Guide](docs/CSV_JSONL_GUIDE.md) for detailed format documentation.**
+```bash
+# Fast ingestion with 8 parallel workers
+python scripts/ingest.py --workers 8
+
+# Memory-efficient ingestion of large files
+python scripts/ingest.py --batch-mode --batch-size 50
+
+# Re-ingest only modified files (automatic with caching)
+python scripts/ingest.py
+
+# Force re-ingestion of all files
+python scripts/ingest.py --no-cache --overwrite
+```
 
 ### 2. Start Chat Interface
 
@@ -122,6 +149,34 @@ python main.py
 - **`stats`**: View application statistics
 - **`new`**: Start a new conversation session
 - **`exit`** or **`quit`**: Exit the application
+
+## ⚡ Performance Features
+
+### 1. Parallel Processing
+- Processes multiple files simultaneously using `ProcessPoolExecutor`
+- Configurable number of workers (default: 4)
+- Significantly faster for multiple files
+
+### 2. File Caching
+- Tracks file hashes to skip unchanged files
+- Stored in `.ingest_cache.json`
+- Automatic incremental ingestion
+- Use `--no-cache` to disable
+
+### 3. Lazy Loading
+- Streams large files in chunks
+- Prevents memory overflow on large datasets
+- Configurable chunk sizes for each format
+
+### 4. Batch Processing
+- Memory-efficient mode for very large datasets
+- Processes documents in batches
+- Use `--batch-mode` flag
+
+### 5. Memory Optimization
+- Uses generators instead of loading entire files
+- Clears processed chunks from memory
+- Suitable for datasets larger than available RAM
 
 ## 🛠️ Configuration
 
@@ -161,6 +216,8 @@ LOG_TO_FILE=true
 3. **Set appropriate log levels** (WARNING or ERROR for production)
 4. **Monitor Ollama service** health
 5. **Backup vector store** regularly
+6. **Use parallel processing** for faster ingestion
+7. **Enable caching** to avoid reprocessing unchanged files
 
 ### Docker Deployment (Optional)
 
@@ -199,7 +256,14 @@ CMD ["python", "main.py"]
 ### Unit Tests
 
 ```bash
+# Run all tests
 pytest tests/unit/
+
+# Run specific test file
+pytest tests/unit/test_optimized_ingestion.py
+
+# Run with coverage
+pytest tests/unit/ --cov=scripts --cov-report=html
 ```
 
 ### Integration Tests
@@ -211,7 +275,7 @@ pytest tests/integration/
 ### Test Coverage
 
 ```bash
-pytest --cov=app --cov-report=html
+pytest --cov=app --cov=scripts --cov-report=html
 ```
 
 ## 📊 Monitoring and Logging
@@ -290,7 +354,7 @@ ollama serve
 
 ```bash
 # Clear and rebuild vector store
-python scripts/ingest.py --overwrite
+python scripts/ingest.py --overwrite --no-cache
 ```
 
 ### Model Not Found
@@ -304,6 +368,26 @@ ollama pull nomic-embed-text
 ollama pull llama3.1:8b-instruct-q4_K_M
 ```
 
+### Ingestion Cache Issues
+
+```bash
+# Clear ingestion cache
+rm .ingest_cache.json
+
+# Re-ingest all files
+python scripts/ingest.py --no-cache
+```
+
+### Performance Issues
+
+```bash
+# Increase parallel workers
+python scripts/ingest.py --workers 8
+
+# Use batch mode for large datasets
+python scripts/ingest.py --batch-mode --batch-size 50
+```
+
 ## 📝 Next Steps
 
 This application is ready to be extended with:
@@ -314,6 +398,7 @@ This application is ready to be extended with:
 4. **Multi-tenancy** - Support multiple users/organizations
 5. **Advanced RAG** - Implement hybrid search, re-ranking
 6. **Observability** - Add Prometheus metrics, OpenTelemetry
+7. **GPU Acceleration** - Support GPU for embeddings
 
 ## 📄 License
 

@@ -53,5 +53,8 @@ Thumbs.db
 htmlcov/
 .tox/
 
+# Ingestion cache
+.ingest_cache.json
+
 # Keep data directory but ignore PDFs
 !data/.gitkeep
