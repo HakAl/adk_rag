@@ -18,6 +18,7 @@ except ImportError as e:
     print(f"Missing required package: {e}")
     sys.exit(1)
 
+
 # File hash cache for skip already-ingested files
 CACHE_FILE = Path(".ingest_cache.json")
 
@@ -167,11 +168,12 @@ def process_single_file(file_path: Path, reader_func) -> Tuple[Path, List[Dict[s
 
 
 def ingest_documents_parallel(
-        directory: Path,
-        file_types: List[str],
-        overwrite: bool = False,
-        max_workers: int = 4,
-        skip_cached: bool = True
+    directory: Path,
+    file_types: List[str],
+    overwrite: bool = False,
+    max_workers: int = 4,
+    skip_cached: bool = True,
+    recursive: bool = True
 ) -> List[Dict[str, Any]]:
     """Ingest documents from directory with parallel processing."""
     file_readers = {
@@ -194,7 +196,7 @@ def ingest_documents_parallel(
             continue
 
         reader_func, pattern = file_readers[file_type]
-        files = list(directory.glob(pattern))
+        files = list(directory.rglob(pattern) if recursive else directory.glob(pattern))
 
         for file_path in files:
             if skip_cached and not should_process_file(file_path, cache):
@@ -235,10 +237,11 @@ def ingest_documents_parallel(
 
 
 def ingest_documents_batch(
-        directory: Path,
-        file_types: List[str],
-        overwrite: bool = False,
-        batch_size: int = 100
+    directory: Path,
+    file_types: List[str],
+    overwrite: bool = False,
+    batch_size: int = 100,
+    recursive: bool = True
 ) -> Iterator[List[Dict[str, Any]]]:
     """Ingest documents in batches for memory-efficient processing."""
     file_readers = {
@@ -262,7 +265,7 @@ def ingest_documents_batch(
             continue
 
         reader_func, pattern = file_readers[file_type]
-        files = list(directory.glob(pattern))
+        files = list(directory.rglob(pattern) if recursive else directory.glob(pattern))
 
         print(f"Found {len(files)} {file_type} files")
 
@@ -342,6 +345,11 @@ def main():
         action="store_true",
         help="Disable file caching (process all files)"
     )
+    parser.add_argument(
+        "--no-recursive",
+        action="store_true",
+        help="Do not search subdirectories (default: searches recursively)"
+    )
 
     args = parser.parse_args()
 
@@ -357,10 +365,11 @@ def main():
     if args.batch_mode:
         # Batch processing mode
         for batch in ingest_documents_batch(
-                args.directory,
-                file_types,
-                args.overwrite,
-                args.batch_size
+            args.directory,
+            file_types,
+            args.overwrite,
+            args.batch_size,
+            not args.no_recursive
         ):
             # In real implementation, this would send batch to vector store
             pass
@@ -371,7 +380,8 @@ def main():
             file_types,
             args.overwrite,
             args.workers,
-            not args.no_cache
+            not args.no_cache,
+            not args.no_recursive
         )
 
 

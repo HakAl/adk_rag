@@ -1,4 +1,4 @@
-# RAG Agent - Production-Ready Python Application
+# VIBE Agent - Production-Ready Python Application
 
 A maintainable, production-ready Python application for Retrieval-Augmented Generation (RAG) using Google's Agent Development Kit (ADK) and Ollama for local LLM inference.
 
@@ -87,6 +87,8 @@ Place your documents in the `data/` directory:
 - JSONL files (`.jsonl`)
 - Parquet files (`.parquet`)
 
+**Note**: By default, ingestion searches recursively through all subdirectories. You can organize files in subdirectories like `data/2024/reports/`, `data/archive/`, etc.
+
 Then run:
 
 ```bash
@@ -119,6 +121,7 @@ python scripts/ingest.py --overwrite
 - `--batch-mode`: Use batch processing for memory efficiency
 - `--batch-size N`: Batch size for batch mode (default: 100)
 - `--no-cache`: Disable file caching (process all files)
+- `--no-recursive`: Search only the root directory, not subdirectories
 - `--overwrite`: Replace existing vector store collection
 
 **Example Workflows:**
@@ -135,6 +138,13 @@ python scripts/ingest.py
 
 # Force re-ingestion of all files
 python scripts/ingest.py --no-cache --overwrite
+
+# Ingest only from root directory (no subdirectories)
+python scripts/ingest.py --no-recursive
+
+# Ingest from complex subdirectory structure (default behavior)
+# Automatically finds files in data/2024/Q1/, data/archive/, etc.
+python scripts/ingest.py
 ```
 
 ### 2. Start Chat Interface
@@ -177,6 +187,11 @@ python main.py
 - Uses generators instead of loading entire files
 - Clears processed chunks from memory
 - Suitable for datasets larger than available RAM
+
+### 6. Recursive Subdirectory Search
+- Automatically searches all subdirectories (default)
+- Supports complex directory structures
+- Use `--no-recursive` to search only root directory
 
 ## 🛠️ Configuration
 
