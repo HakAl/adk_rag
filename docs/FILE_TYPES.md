@@ -1,6 +1,6 @@
-# CSV and JSONL Support Guide
+# CSV, JSONL, and Parquet Support Guide
 
-The RAG Agent now supports ingesting data from CSV and JSONL files in addition to PDF documents.
+The RAG Agent now supports ingesting data from CSV, JSONL, and Parquet files in addition to PDF documents.
 
 ## Supported File Formats
 
@@ -18,6 +18,12 @@ The RAG Agent now supports ingesting data from CSV and JSONL files in addition t
 - JSON Lines format (one JSON object per line)
 - Flexible schema - automatically extracts text from various fields
 - Supports nested structures
+
+### 4. Parquet Files (`.parquet`)
+- Columnar storage format
+- Efficient for large datasets
+- Preserves data types and schema
+- Each row becomes a document
 
 ## CSV Format
 
@@ -86,6 +92,55 @@ Each line is a valid JSON object:
 4. **Use UTF-8 encoding**
 5. **Validate JSON** before ingestion
 
+## Parquet Format
+
+### Basic Structure
+Parquet is a columnar storage format that stores data efficiently in a binary format. Each row in the Parquet file becomes a document.
+
+### Example: Analytics Data
+```python
+# Creating a Parquet file with pandas
+import pandas as pd
+
+data = {
+    'title': ['API Design Best Practices', 'Database Optimization'],
+    'content': ['RESTful API design involves...', 'Indexing strategies improve...'],
+    'category': ['Backend', 'Database'],
+    'views': [1250, 890]
+}
+
+df = pd.DataFrame(data)
+df.to_parquet('knowledge_base.parquet', index=False)
+```
+
+**How it works:**
+- Each row becomes a separate document
+- All columns are read and concatenated for search
+- Data types are preserved (strings, numbers, dates, etc.)
+- Efficient for large datasets due to columnar compression
+- Metadata from all columns is available
+
+### Advantages of Parquet:
+- **Efficient storage**: Compressed columnar format saves space
+- **Fast reads**: Only needed columns are read
+- **Type safety**: Preserves data types (integers, floats, dates)
+- **Schema evolution**: Supports adding/removing columns
+- **Big data ready**: Works well with large datasets
+
+### Best Practices for Parquet:
+1. **Use meaningful column names** (title, content, description, etc.)
+2. **Keep text content in dedicated columns** for better organization
+3. **Leverage data types** - Parquet preserves integers, dates, etc.
+4. **Compress appropriately** - Default compression works well for most cases
+5. **Consider partitioning** for very large datasets
+
+### Common Use Cases:
+- **Analytics exports**: Data from business intelligence tools
+- **Machine learning datasets**: Training data with features
+- **Log aggregations**: Processed logs from data pipelines
+- **Database exports**: Efficient table exports
+- **ETL outputs**: Transformed data from data pipelines
+
 ## Ingestion Commands
 
 ### Ingest All File Types (Default)
@@ -104,8 +159,11 @@ python scripts/ingest.py --types csv
 # Only JSONL
 python scripts/ingest.py --types jsonl
 
+# Only Parquet
+python scripts/ingest.py --types parquet
+
 # Multiple types
-python scripts/ingest.py --types pdf csv
+python scripts/ingest.py --types pdf csv parquet
 
 # All types (explicit)
 python scripts/ingest.py --types all
@@ -114,7 +172,7 @@ python scripts/ingest.py --types all
 ### Other Options
 ```bash
 # Custom directory
-python scripts/ingest.py --directory /path/to/data --types csv jsonl
+python scripts/ingest.py --directory /path/to/data --types csv jsonl parquet
 
 # Overwrite existing data
 python scripts/ingest.py --overwrite --types all
@@ -136,21 +194,31 @@ python scripts/ingest.py --overwrite --types all
 - **Documentation**: Code snippets with explanations
 - **Chat transcripts**: Messages with timestamps and users
 
+### Parquet Use Cases
+- **Data warehouse exports**: Analytics data from warehouses
+- **ML feature stores**: Prepared features for models
+- **Time-series data**: Metrics and events with timestamps
+- **Large-scale knowledge bases**: Millions of documents
+- **ETL pipeline outputs**: Processed data from pipelines
+- **Database snapshots**: Efficient table exports
+
 ## Example Files
 
 Example files are provided in the `examples/` directory:
 
 - `sample_knowledge.csv` - Example CSV with tech topics
 - `sample_knowledge.jsonl` - Example JSONL with programming concepts
+- `sample_knowledge.parquet` - Example Parquet with data analytics topics
 
 ### Test the Examples
 ```bash
 # Copy examples to data directory
 cp examples/sample_knowledge.csv data/
 cp examples/sample_knowledge.jsonl data/
+cp examples/sample_knowledge.parquet data/
 
 # Ingest
-python scripts/ingest.py --types csv jsonl
+python scripts/ingest.py --types csv jsonl parquet
 
 # Query
 python main.py
@@ -173,7 +241,7 @@ num_docs, num_chunks, files = app.ingest_documents()
 # Ingest specific types
 num_docs, num_chunks, files = app.ingest_documents(
     directory=Path("data"),
-    file_types=['csv', 'jsonl'],
+    file_types=['csv', 'jsonl', 'parquet'],
     overwrite=False
 )
 ```
@@ -188,9 +256,31 @@ vector_store = VectorStoreService()
 # Ingest documents
 num_docs, num_chunks, files = vector_store.ingest_documents(
     directory=Path("data"),
-    file_types=['pdf', 'csv', 'jsonl'],
+    file_types=['pdf', 'csv', 'jsonl', 'parquet'],
     overwrite=False
 )
+```
+
+### Creating Parquet Files
+
+```python
+import pandas as pd
+
+# From a DataFrame
+df = pd.DataFrame({
+    'title': ['Topic 1', 'Topic 2'],
+    'content': ['Content 1...', 'Content 2...'],
+    'category': ['Tech', 'Science']
+})
+df.to_parquet('data/my_knowledge.parquet', index=False)
+
+# From CSV
+df = pd.read_csv('data.csv')
+df.to_parquet('data.parquet', index=False)
+
+# From JSONL
+df = pd.read_json('data.jsonl', lines=True)
+df.to_parquet('data.parquet', index=False)
 ```
 
 ## Tips for Optimal Results
@@ -198,7 +288,7 @@ num_docs, num_chunks, files = vector_store.ingest_documents(
 ### Data Preparation
 1. **Clean your data**: Remove duplicates and irrelevant information
 2. **Consistent formatting**: Use consistent column names and JSON fields
-3. **Chunk size**: Large CSV rows or JSON objects will be automatically chunked
+3. **Chunk size**: Large CSV rows, JSON objects, or Parquet rows will be automatically chunked
 4. **Metadata**: Include metadata fields for better context
 
 ### CSV Tips
@@ -211,6 +301,13 @@ num_docs, num_chunks, files = vector_store.ingest_documents(
 - Store metadata in separate fields
 - Keep objects relatively flat (avoid deep nesting)
 - Each line should be a complete, valid JSON object
+
+### Parquet Tips
+- Use a `content` or `text` column for main searchable text
+- Keep structured metadata in separate columns
+- Leverage compression for large files
+- Use appropriate data types (dates as datetime, not strings)
+- Consider splitting very large files (>100MB) into smaller partitions
 
 ## Troubleshooting
 
@@ -237,6 +334,22 @@ num_docs, num_chunks, files = vector_store.ingest_documents(
 - Check JSON structure
 - Verify string values aren't empty
 
+### Parquet Issues
+
+**Problem**: Parquet file not loading
+- Verify file is valid Parquet format
+- Check if pandas/pyarrow is installed
+- Ensure file isn't corrupted
+
+**Problem**: Missing dependencies
+- Install required libraries: `pip install pandas pyarrow`
+- Or use: `pip install fastparquet` as alternative
+
+**Problem**: Memory issues with large files
+- Process in smaller batches
+- Use row group filtering if possible
+- Consider splitting into multiple smaller files
+
 ## Advanced: Custom Text Extraction
 
 For custom JSON structures, you can modify `_extract_text_from_json()` in `app/services/vector_store.py`:
@@ -254,14 +367,28 @@ def _extract_text_from_json(self, data: Dict[str, Any]) -> str:
 
 ## Performance Considerations
 
-- **Large CSVs**: Consider splitting into smaller files
+- **Large CSVs**: Consider converting to Parquet for better performance
 - **Many JSONL records**: Ingestion happens line-by-line, so memory efficient
+- **Parquet files**: Most efficient for large datasets, faster reads than CSV
 - **Mixed file types**: All are processed in a single batch for efficiency
 - **Chunking**: Large documents are automatically split into optimal chunks
+- **File size**: Parquet files are typically 50-80% smaller than equivalent CSV files
+
+## Format Comparison
+
+| Feature | CSV | JSONL | Parquet |
+|---------|-----|-------|---------|
+| **Human Readable** | ✅ Yes | ✅ Yes | ❌ No (binary) |
+| **Compression** | ❌ Manual | ❌ Manual | ✅ Built-in |
+| **Type Safety** | ❌ No | ⚠️ Partial | ✅ Yes |
+| **Schema Evolution** | ❌ No | ✅ Yes | ✅ Yes |
+| **Large Files** | ⚠️ Slow | ✅ Fast | ✅ Very Fast |
+| **Nested Data** | ❌ No | ✅ Yes | ✅ Yes |
+| **Best For** | Small datasets | API data, logs | Analytics, ML |
 
 ## Next Steps
 
-1. Prepare your CSV or JSONL files
+1. Prepare your CSV, JSONL, or Parquet files
 2. Place them in the `data/` directory
 3. Run ingestion with appropriate file type flags
 4. Query your data through the chat interface
