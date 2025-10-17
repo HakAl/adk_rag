@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { ScrollArea } from './ui/scroll-area';
-import { Send } from 'lucide-react';
+import { Send, Loader2 } from 'lucide-react';
 
 export const Chat = () => {
   const [input, setInput] = useState('');
@@ -30,7 +30,10 @@ export const Chat = () => {
     return (
       <Card>
         <CardContent className="p-6">
-          <p className="text-muted-foreground text-center">Initializing chat session...</p>
+          <div className="flex items-center justify-center gap-2">
+            <Loader2 className="h-4 w-4 animate-spin text-primary" />
+            <p className="text-foreground">Initializing chat session...</p>
+          </div>
         </CardContent>
       </Card>
     );
@@ -62,17 +65,26 @@ export const Chat = () => {
               messages.map((msg) => (
                 <div key={msg.id} className="space-y-2">
                   <div className="flex justify-end">
-                    <div className="bg-primary text-primary-foreground rounded-lg px-4 py-2 max-w-[80%]">
+                    <div className="bg-blue-600 text-white rounded-lg px-4 py-2 max-w-[80%]">
                       {msg.question}
                     </div>
                   </div>
                   <div className="flex justify-start">
-                    <div className="bg-muted rounded-lg px-4 py-2 max-w-[80%]">
+                    <div className="bg-secondary text-secondary-foreground rounded-lg px-4 py-2 max-w-[80%]">
                       {msg.answer}
                     </div>
                   </div>
                 </div>
               ))
+            )}
+
+            {mutation.isPending && (
+              <div className="flex justify-start">
+                <div className="bg-secondary/60 text-secondary-foreground rounded-lg px-4 py-2 flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Thinking...</span>
+                </div>
+              </div>
             )}
           </div>
         </ScrollArea>
@@ -87,12 +99,16 @@ export const Chat = () => {
             className="flex-1"
           />
           <Button type="submit" disabled={mutation.isPending || !session} size="icon">
-            <Send className="h-4 w-4" />
+            {mutation.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
           </Button>
         </form>
 
         {mutation.isError && (
-          <p className="text-red-500 text-sm mt-2">Error: {mutation.error.message}</p>
+          <p className="text-red-400 text-sm mt-2">Error: {mutation.error.message}</p>
         )}
       </CardContent>
     </Card>

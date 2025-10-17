@@ -59,3 +59,14 @@
     -moz-osx-font-smoothing: grayscale;
   }
 }
+
+/* Fix input text visibility in dark mode */
+@layer components {
+  .dark input {
+    @apply text-foreground;
+  }
+
+  .dark input::placeholder {
+    @apply text-muted-foreground;
+  }
+}
