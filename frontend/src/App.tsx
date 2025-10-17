@@ -38,10 +38,11 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="dark min-h-screen bg-background">
-        <div className="container mx-auto p-4 max-w-4xl">
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-2">
+      <div className="dark h-screen bg-background flex flex-col">
+        {/* Header */}
+        <div className="flex-shrink-0 border-b border-border">
+          <div className="container mx-auto px-4 py-4">
+            <div className="flex items-center justify-between">
               <h1 className="text-3xl font-bold text-primary">VIBE Agent</h1>
 
               {health && (
@@ -54,10 +55,10 @@ function App() {
               )}
             </div>
 
-            {loading && <p className="text-muted-foreground">Loading...</p>}
+            {loading && <p className="text-muted-foreground mt-2">Loading...</p>}
 
             {error && (
-              <Card className="border-red-500 bg-red-950/20">
+              <Card className="border-red-500 bg-red-950/20 mt-4">
                 <CardHeader>
                   <CardTitle className="text-red-500">Error</CardTitle>
                 </CardHeader>
@@ -67,9 +68,14 @@ function App() {
               </Card>
             )}
           </div>
-
-          {health && <Chat />}
         </div>
+
+        {/* Chat Area - Full width, remaining height */}
+        {health && (
+          <div className="flex-1 px-4 py-4 min-h-0 overflow-hidden">
+            <Chat />
+          </div>
+        )}
       </div>
     </QueryClientProvider>
   );
