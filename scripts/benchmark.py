@@ -4,7 +4,7 @@ LLM Local Inference Benchmark for Intel Hardware
 Tests various configurations to find optimal settings for agent workloads
 
 # Install dependencies
-pip install torch transformers intel-extension-for-pytorch psutil
+pip install psutil torch transformers intel-extension-for-pytorch psutil
 
 # Run the benchmark
 python benchmark.py

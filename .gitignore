@@ -58,3 +58,5 @@ htmlcov/
 
 # Keep data directory but ignore PDFs
 !data/.gitkeep
+
+/benchmark_results

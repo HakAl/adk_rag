@@ -5,26 +5,57 @@ from typing import List, Optional, Tuple, Dict, Any
 from pathlib import Path
 import time
 import json
-import csv
 
-from langchain_ollama import OllamaEmbeddings
 from langchain_chroma import Chroma
 from langchain_community.document_loaders import PyPDFDirectoryLoader, CSVLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain.schema import Document
 
 from config import settings, logger
+from app.core.providers import ProviderFactory
 
 
 class VectorStoreService:
     """Service for managing vector store operations."""
 
-    def __init__(self):
-        """Initialize the vector store service."""
-        self.embeddings = OllamaEmbeddings(
-            model=settings.embedding_model,
-            base_url=settings.ollama_base_url
-        )
+    def __init__(self, provider_type: Optional[str] = None):
+        """
+        Initialize the vector store service.
+
+        Args:
+            provider_type: Provider type override (defaults to settings.provider_type)
+        """
+        provider_type = provider_type or settings.provider_type
+
+        # Create provider based on type
+        if provider_type == 'ollama':
+            self.provider = ProviderFactory.create_provider(
+                'ollama',
+                embedding_model=settings.embedding_model,
+                chat_model=settings.chat_model,
+                base_url=settings.ollama_base_url,
+                debug=settings.debug
+            )
+        elif provider_type == 'llamacpp':
+            if not settings.llamacpp_embedding_model_path:
+                raise ValueError("LLAMACPP_EMBEDDING_MODEL_PATH not configured")
+
+            self.provider = ProviderFactory.create_provider(
+                'llamacpp',
+                embedding_model_path=settings.llamacpp_embedding_model_path,
+                chat_model_path=settings.llamacpp_chat_model_path or settings.llamacpp_embedding_model_path,
+                n_ctx=settings.llamacpp_n_ctx,
+                n_batch=settings.llamacpp_n_batch,
+                n_threads=settings.llamacpp_n_threads,
+                temperature=settings.llamacpp_temperature,
+                max_tokens=settings.llamacpp_max_tokens,
+                verbose=settings.debug
+            )
+        else:
+            raise ValueError(f"Unsupported provider type: {provider_type}")
+
+        # Get embeddings from provider
+        self.embeddings = self.provider.get_embedding_provider().get_embeddings()
         self.vectorstore: Optional[Chroma] = None
         self._initialize()
 
@@ -85,7 +116,6 @@ class VectorStoreService:
 
         for csv_file in csv_files:
             try:
-                # Use CSVLoader for simple CSV files
                 loader = CSVLoader(str(csv_file), encoding='utf-8')
                 file_docs = loader.load()
                 logger.info(f"Loaded {len(file_docs)} rows from {csv_file.name}")
@@ -156,22 +186,17 @@ class VectorStoreService:
         Returns:
             Extracted text content
         """
-        # Common field names for text content
         text_fields = ['text', 'content', 'body', 'message', 'description', 'summary']
 
-        # Try to find a single text field first
         for field in text_fields:
             if field in data and isinstance(data[field], str):
                 return data[field]
 
-        # If no single field found, concatenate all string values
         text_parts = []
         for key, value in data.items():
             if isinstance(value, str) and value.strip():
-                # Format as "key: value" for context
                 text_parts.append(f"{key}: {value}")
             elif isinstance(value, (list, dict)):
-                # Convert complex types to string
                 text_parts.append(f"{key}: {json.dumps(value)}")
 
         return "\n".join(text_parts)
@@ -194,7 +219,6 @@ class VectorStoreService:
 
         return docs
 
-
     def ingest_documents(
         self,
         directory: Optional[Path] = None,
@@ -216,7 +240,6 @@ class VectorStoreService:
         start_time = time.time()
         data_dir = directory or settings.data_dir
 
-        # Default to all supported types if not specified
         if file_types is None:
             file_types = ['pdf', 'csv', 'jsonl']
 
@@ -226,7 +249,6 @@ class VectorStoreService:
         all_docs = []
         filenames = []
 
-        # Load each file type
         if 'pdf' in file_types:
             pdf_docs = self._load_pdf_files(data_dir)
             all_docs.extend(pdf_docs)
@@ -254,7 +276,6 @@ class VectorStoreService:
 
         logger.info(f"Loaded {len(all_docs)} total document(s)")
 
-        # Split documents
         logger.info("Splitting documents into chunks...")
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=settings.chunk_size,
@@ -263,7 +284,6 @@ class VectorStoreService:
         splits = text_splitter.split_documents(all_docs)
         logger.info(f"Created {len(splits)} text chunks")
 
-        # Create or update vector store with optimized settings
         if overwrite or not self._store_exists():
             logger.info("Creating new vector store with optimized index settings...")
             self.vectorstore = Chroma.from_documents(
@@ -363,7 +383,7 @@ class VectorStoreService:
                 "status": "ready",
                 "count": count,
                 "collection": settings.collection_name,
-                "embedding_model": settings.embedding_model
+                "provider": settings.provider_type
             }
         except Exception as e:
             logger.error(f"Error getting stats: {e}")

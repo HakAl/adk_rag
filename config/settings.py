@@ -19,7 +19,7 @@ class Settings:
     
     # API Configuration
     api_base_url: str = "http://localhost:8000"
-    api_timeout: int = 180  # 3 minutes for agent processing (was 30)
+    api_timeout: int = 180  # 3 minutes for agent processing
 
     # Paths
     base_dir: Path = field(default_factory=lambda: Path(__file__).resolve().parent.parent)
@@ -31,18 +31,30 @@ class Settings:
     collection_name: str = "adk_local_rag"
     chunk_size: int = 1024
     chunk_overlap: int = 100
-    retrieval_k: int = 3  # Reduced from 5 to 3 for faster queries
+    retrieval_k: int = 3
 
     # ChromaDB Performance Settings
-    chroma_hnsw_space: str = "cosine"  # Distance metric: cosine, l2, or ip
-    chroma_hnsw_construction_ef: int = 100  # Reduced from default 200 for faster indexing
-    chroma_hnsw_search_ef: int = 50  # Reduced from default 100 for faster search
-    chroma_hnsw_m: int = 16  # Number of connections per layer (default 16)
+    chroma_hnsw_space: str = "cosine"
+    chroma_hnsw_construction_ef: int = 100
+    chroma_hnsw_search_ef: int = 50
+    chroma_hnsw_m: int = 16
 
-    # Ollama Models
+    # Provider Configuration
+    provider_type: str = "ollama"  # 'ollama' or 'llamacpp'
+
+    # Ollama Configuration
     embedding_model: str = "nomic-embed-text"
     chat_model: str = "phi3:mini"
     ollama_base_url: str = "http://localhost:11434"
+
+    # llama.cpp Configuration
+    llamacpp_embedding_model_path: Optional[str] = None
+    llamacpp_chat_model_path: Optional[str] = None
+    llamacpp_n_ctx: int = 2048
+    llamacpp_n_batch: int = 512
+    llamacpp_n_threads: Optional[int] = None
+    llamacpp_temperature: float = 0.7
+    llamacpp_max_tokens: int = 512
 
     # Session Management
     session_timeout_minutes: int = 60
@@ -72,9 +84,25 @@ class Settings:
             environment=os.getenv("ENVIRONMENT", "development"),
             api_base_url=os.getenv("API_BASE_URL", "http://localhost:8000"),
             api_timeout=int(os.getenv("API_TIMEOUT", "180")),
+
+            # Provider
+            provider_type=os.getenv("PROVIDER_TYPE", "ollama"),
+
+            # Ollama
             embedding_model=os.getenv("EMBEDDING_MODEL", "nomic-embed-text"),
             chat_model=os.getenv("CHAT_MODEL", "phi3:mini"),
             ollama_base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+
+            # llama.cpp
+            llamacpp_embedding_model_path=os.getenv("LLAMACPP_EMBEDDING_MODEL_PATH"),
+            llamacpp_chat_model_path=os.getenv("LLAMACPP_CHAT_MODEL_PATH"),
+            llamacpp_n_ctx=int(os.getenv("LLAMACPP_N_CTX", "2048")),
+            llamacpp_n_batch=int(os.getenv("LLAMACPP_N_BATCH", "512")),
+            llamacpp_n_threads=int(os.getenv("LLAMACPP_N_THREADS")) if os.getenv("LLAMACPP_N_THREADS") else None,
+            llamacpp_temperature=float(os.getenv("LLAMACPP_TEMPERATURE", "0.7")),
+            llamacpp_max_tokens=int(os.getenv("LLAMACPP_MAX_TOKENS", "512")),
+
+            # Other settings
             log_level=os.getenv("LOG_LEVEL", "INFO"),
             log_to_file=os.getenv("LOG_TO_FILE", "false").lower() == "true",
             retrieval_k=int(os.getenv("RETRIEVAL_K", "3")),
