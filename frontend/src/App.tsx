@@ -41,7 +41,18 @@ function App() {
       <div className="dark min-h-screen bg-background">
         <div className="container mx-auto p-4 max-w-4xl">
           <div className="mb-6">
-            <h1 className="text-3xl font-bold text-primary mb-2">VIBE Agent</h1>
+            <div className="flex items-center justify-between mb-2">
+              <h1 className="text-3xl font-bold text-primary">VIBE Agent</h1>
+
+              {health && (
+                <div className="flex items-center gap-4 text-sm">
+                  <span className="text-muted-foreground">Status:</span>
+                  <span className="text-green-500 font-semibold">{health.status}</span>
+                  <span className="text-muted-foreground">Version:</span>
+                  <span className="text-muted-foreground">{process.env.REACT_APP_VERSION || '0.1.0'}</span>
+                </div>
+              )}
+            </div>
 
             {loading && <p className="text-muted-foreground">Loading...</p>}
 
@@ -52,22 +63,6 @@ function App() {
                 </CardHeader>
                 <CardContent>
                   <p className="text-red-400">{error}</p>
-                </CardContent>
-              </Card>
-            )}
-
-            {health && (
-              <Card className="mb-4">
-                <CardHeader>
-                  <CardTitle className="text-lg">API Status</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-4 text-sm">
-                    <span className="text-muted-foreground">Status:</span>
-                    <span className="text-green-500 font-semibold">{health.status}</span>
-                    <span className="text-muted-foreground">Version:</span>
-                    <span>{health.version}</span>
-                  </div>
                 </CardContent>
               </Card>
             )}

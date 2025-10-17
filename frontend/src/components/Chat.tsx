@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useSession, useChat } from '../hooks/useChat';
 import { Message } from '../api/chat';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Input } from './ui/input';
+import { Textarea } from './ui/textarea';
 import { Button } from './ui/button';
 import { ScrollArea } from './ui/scroll-area';
 import { Send, Loader2 } from 'lucide-react';
@@ -24,6 +24,14 @@ export const Chat = () => {
 
     mutation.mutate(input);
     setInput('');
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Submit on Enter, but allow Shift+Enter for new lines
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit(e);
+    }
   };
 
   if (sessionLoading) {
@@ -65,12 +73,12 @@ export const Chat = () => {
               messages.map((msg) => (
                 <div key={msg.id} className="space-y-2">
                   <div className="flex justify-end">
-                    <div className="bg-blue-600 text-white rounded-lg px-4 py-2 max-w-[80%]">
+                    <div className="bg-blue-600 text-white rounded-lg px-4 py-2 max-w-[80%] whitespace-pre-wrap">
                       {msg.question}
                     </div>
                   </div>
                   <div className="flex justify-start">
-                    <div className="bg-secondary text-secondary-foreground rounded-lg px-4 py-2 max-w-[80%]">
+                    <div className="bg-secondary text-secondary-foreground rounded-lg px-4 py-2 max-w-[80%] whitespace-pre-wrap">
                       {msg.answer}
                     </div>
                   </div>
@@ -89,16 +97,17 @@ export const Chat = () => {
           </div>
         </ScrollArea>
 
-        <form onSubmit={handleSubmit} className="flex gap-2">
-          <Input
-            type="text"
+        <form onSubmit={handleSubmit} className="flex gap-2 items-end">
+          <Textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Type your message..."
+            onKeyDown={handleKeyDown}
+            placeholder="Type your message... (Shift+Enter for new line)"
             disabled={mutation.isPending}
-            className="flex-1"
+            className="flex-1 min-h-[80px] max-h-[200px] resize-y"
+            rows={3}
           />
-          <Button type="submit" disabled={mutation.isPending || !session} size="icon">
+          <Button type="submit" disabled={mutation.isPending || !session} size="icon" className="h-10 w-10">
             {mutation.isPending ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
