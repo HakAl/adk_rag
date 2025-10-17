@@ -65,30 +65,34 @@ class ADKAgentService:
         if self.rag_google_service:
             tools.append(self._rag_query_google_tool)
 
-        # Enhanced instruction to help agent choose the right tool
-        instruction = (
+        # Build instruction parts in a list for efficiency
+        instruction_parts = [
             "You are a helpful assistant. When the user asks a question:\n"
             "1. If it's about code, debugging, or general knowledge, answer directly using your knowledge\n"
             "2. If it requires information from documents in the knowledge base, use the appropriate RAG tool\n\n"
             "Available RAG tools:\n"
-            "- rag_query(): Use for queries that need information from the knowledge base (fast, local)\n"
-        )
+            "- rag_query(): Use for queries that need information from the knowledge base (fast, local)"
+        ]
 
+        # Only add provider-specific instructions if services are available
         if self.rag_anthropic_service:
-            instruction += (
-                "- rag_query_anthropic(): Use when you need the knowledge base AND complex reasoning\n"
+            instruction_parts.append(
+                "\n- rag_query_anthropic(): Use when you need the knowledge base AND complex reasoning"
             )
 
         if self.rag_google_service:
-            instruction += (
-                "- rag_query_google(): Use when you need the knowledge base for factual queries\n"
+            instruction_parts.append(
+                "\n- rag_query_google(): Use when you need the knowledge base for factual queries"
             )
 
-        instruction += (
-            "\nIMPORTANT: Only use RAG tools when the answer requires information from the knowledge base. "
+        instruction_parts.append(
+            "\n\nIMPORTANT: Only use RAG tools when the answer requires information from the knowledge base. "
             "For general questions, code review, or common knowledge, answer directly without using tools.\n"
             "Always provide a clear, helpful response to the user."
         )
+
+        # Join once at the end - more efficient than multiple string concatenations
+        instruction = "".join(instruction_parts)
 
         agent = LlmAgent(
             name="rag_assistant",

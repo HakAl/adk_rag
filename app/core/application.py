@@ -8,8 +8,6 @@ from typing import Optional, Tuple, List
 from config import settings, logger
 from app.services.vector_store import VectorStoreService
 from app.services.rag import RAGService
-from app.services.rag_anthropic import RAGAnthropicService
-from app.services.rag_google import RAGGoogleService
 from app.services.adk_agent import ADKAgentService
 
 
@@ -30,17 +28,21 @@ class RAGAgentApp:
 
         if os.getenv("ANTHROPIC_API_KEY"):
             try:
+                # Lazy import - only loads when needed
+                from app.services.rag_anthropic import RAGAnthropicService
                 self.rag_anthropic_service = RAGAnthropicService(self.vector_store)
                 logger.info("✅ Anthropic provider initialized")
             except Exception as e:
-                logger.warning(f"⚠️  Anthropic provider not available: {e}")
+                logger.warning(f"⚠️ Anthropic provider not available: {e}")
 
         if os.getenv("GOOGLE_API_KEY"):
             try:
+                # Lazy import - only loads when needed
+                from app.services.rag_google import RAGGoogleService
                 self.rag_google_service = RAGGoogleService(self.vector_store)
                 logger.info("✅ Google provider initialized")
             except Exception as e:
-                logger.warning(f"⚠️  Google provider not available: {e}")
+                logger.warning(f"⚠️ Google provider not available: {e}")
 
         # Initialize ADK agent with all available providers
         self.adk_agent = ADKAgentService(

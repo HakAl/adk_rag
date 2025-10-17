@@ -41,7 +41,7 @@ class Settings:
 
     # Ollama Models
     embedding_model: str = "nomic-embed-text"
-    chat_model: str = "llama3.1:8b-instruct-q4_K_M"
+    chat_model: str = "phi3:mini"
     ollama_base_url: str = "http://localhost:11434"
 
     # Session Management
@@ -73,7 +73,7 @@ class Settings:
             api_base_url=os.getenv("API_BASE_URL", "http://localhost:8000"),
             api_timeout=int(os.getenv("API_TIMEOUT", "180")),
             embedding_model=os.getenv("EMBEDDING_MODEL", "nomic-embed-text"),
-            chat_model=os.getenv("CHAT_MODEL", "llama3.1:8b-instruct-q4_K_M"),
+            chat_model=os.getenv("CHAT_MODEL", "phi3:mini"),
             ollama_base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
             log_level=os.getenv("LOG_LEVEL", "INFO"),
             log_to_file=os.getenv("LOG_TO_FILE", "false").lower() == "true",

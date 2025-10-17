@@ -50,7 +50,7 @@ ingest:
 dev-setup: install-dev
 	@echo "Installing Ollama models..."
 	ollama pull nomic-embed-text
-	ollama pull llama3.1:8b-instruct-q4_K_M
+	ollama pull phi3:mini
 	@echo "✅ Development environment ready!"
 
 check: lint test
@@ -110,7 +110,7 @@ docker-stats:
 docker-pull-models:
 	@echo "Pulling Ollama models..."
 	docker-compose exec ollama ollama pull nomic-embed-text
-	docker-compose exec ollama ollama pull llama3.1:8b-instruct-q4_K_M
+	docker-compose exec ollama ollama pull phi3:mini
 
 # Development Docker commands
 docker-dev:
@@ -157,7 +157,7 @@ docker-dev-setup: docker-dev-build docker-dev-up
 	@sleep 15
 	@echo "Pulling models..."
 	@docker-compose -f docker-compose.dev.yml exec ollama ollama pull nomic-embed-text
-	@docker-compose -f docker-compose.dev.yml exec ollama ollama pull llama3.1:8b-instruct-q4_K_M
+	@docker-compose -f docker-compose.dev.yml exec ollama ollama pull phi3:mini
 	@echo "✅ Development Docker setup complete!"
 
 # Quick start with Docker
