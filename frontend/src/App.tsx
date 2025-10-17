@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Chat } from './components/Chat';
-import './App.css';
+import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
 
 interface HealthResponse {
   status: string;
@@ -38,29 +38,43 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="App">
-        <header className="App-header">
-          <h1>VIBE Agent Frontend</h1>
+      <div className="dark min-h-screen bg-background">
+        <div className="container mx-auto p-4 max-w-4xl">
+          <div className="mb-6">
+            <h1 className="text-3xl font-bold text-primary mb-2">VIBE Agent</h1>
 
-          {loading && <p>Loading...</p>}
+            {loading && <p className="text-muted-foreground">Loading...</p>}
 
-          {error && (
-            <div className="error">
-              <h2>Error</h2>
-              <p>{error}</p>
-            </div>
-          )}
+            {error && (
+              <Card className="border-red-500 bg-red-950/20">
+                <CardHeader>
+                  <CardTitle className="text-red-500">Error</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-red-400">{error}</p>
+                </CardContent>
+              </Card>
+            )}
 
-          {health && (
-            <div className="health">
-              <h2>API Health Check</h2>
-              <p>Status: <span className="status-healthy">{health.status}</span></p>
-              <p>Version: {health.version}</p>
-            </div>
-          )}
+            {health && (
+              <Card className="mb-4">
+                <CardHeader>
+                  <CardTitle className="text-lg">API Status</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center gap-4 text-sm">
+                    <span className="text-muted-foreground">Status:</span>
+                    <span className="text-green-500 font-semibold">{health.status}</span>
+                    <span className="text-muted-foreground">Version:</span>
+                    <span>{health.version}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
 
           {health && <Chat />}
-        </header>
+        </div>
       </div>
     </QueryClientProvider>
   );

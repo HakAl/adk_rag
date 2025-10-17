@@ -2,6 +2,11 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSession, useChat } from '../hooks/useChat';
 import { Message } from '../api/chat';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { Input } from './ui/input';
+import { Button } from './ui/button';
+import { ScrollArea } from './ui/scroll-area';
+import { Send } from 'lucide-react';
 
 export const Chat = () => {
   const [input, setInput] = useState('');
@@ -22,41 +27,74 @@ export const Chat = () => {
   };
 
   if (sessionLoading) {
-    return <div className="chat-loading">Initializing chat session...</div>;
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <p className="text-muted-foreground text-center">Initializing chat session...</p>
+        </CardContent>
+      </Card>
+    );
   }
 
   if (sessionError) {
-    return <div className="error">Failed to create session: {sessionError.message}</div>;
+    return (
+      <Card className="border-red-500 bg-red-950/20">
+        <CardContent className="p-6">
+          <p className="text-red-400">Failed to create session: {sessionError.message}</p>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
-    <div className="chat-container">
-      <div className="messages">
-        {messages.map((msg) => (
-          <div key={msg.id} className="message">
-            <div className="question"><strong>Q:</strong> {msg.question}</div>
-            <div className="answer"><strong>A:</strong> {msg.answer}</div>
+    <Card className="w-full">
+      <CardHeader>
+        <CardTitle>Chat</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ScrollArea className="h-[500px] mb-4 pr-4">
+          <div className="space-y-4">
+            {messages.length === 0 ? (
+              <p className="text-muted-foreground text-center py-8">
+                Start a conversation by typing a message below
+              </p>
+            ) : (
+              messages.map((msg) => (
+                <div key={msg.id} className="space-y-2">
+                  <div className="flex justify-end">
+                    <div className="bg-primary text-primary-foreground rounded-lg px-4 py-2 max-w-[80%]">
+                      {msg.question}
+                    </div>
+                  </div>
+                  <div className="flex justify-start">
+                    <div className="bg-muted rounded-lg px-4 py-2 max-w-[80%]">
+                      {msg.answer}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
-        ))}
-      </div>
+        </ScrollArea>
 
-      <form onSubmit={handleSubmit} className="chat-form">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask a question..."
-          disabled={mutation.isPending}
-          className="chat-input"
-        />
-        <button type="submit" disabled={mutation.isPending || !session} className="chat-button">
-          {mutation.isPending ? 'Sending...' : 'Send'}
-        </button>
-      </form>
+        <form onSubmit={handleSubmit} className="flex gap-2">
+          <Input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Type your message..."
+            disabled={mutation.isPending}
+            className="flex-1"
+          />
+          <Button type="submit" disabled={mutation.isPending || !session} size="icon">
+            <Send className="h-4 w-4" />
+          </Button>
+        </form>
 
-      {mutation.isError && (
-        <div className="error">Error: {mutation.error.message}</div>
-      )}
-    </div>
+        {mutation.isError && (
+          <p className="text-red-500 text-sm mt-2">Error: {mutation.error.message}</p>
+        )}
+      </CardContent>
+    </Card>
   );
 };
