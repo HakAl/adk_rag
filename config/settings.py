@@ -5,18 +5,22 @@ import os
 from pathlib import Path
 from typing import Optional
 from dataclasses import dataclass, field
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 @dataclass
 class Settings:
     """Application settings."""
-    
+
     # Application
     app_name: str = "VIBE Agent"
     version: str = "1.0.0"
     debug: bool = False
     environment: str = "development"
-    
+
     # API Configuration
     api_base_url: str = "http://localhost:8000"
     api_timeout: int = 180  # 3 minutes for agent processing
@@ -56,6 +60,10 @@ class Settings:
     llamacpp_temperature: float = 0.7
     llamacpp_max_tokens: int = 512
 
+    # llama-server Configuration
+    llama_server_host: str = "127.0.0.1"
+    llama_server_port: int = 8080
+
     # Session Management
     session_timeout_minutes: int = 60
 
@@ -79,6 +87,19 @@ class Settings:
     @classmethod
     def from_env(cls) -> 'Settings':
         """Create settings from environment variables."""
+        # Get models base directory
+        models_base_dir = Path(os.getenv("MODELS_BASE_DIR", "./models"))
+
+        # Get relative paths and join with base directory
+        llamacpp_embedding_path = os.getenv("LLAMACPP_EMBEDDING_MODEL_PATH")
+        llamacpp_chat_path = os.getenv("LLAMACPP_CHAT_MODEL_PATH")
+
+        # Join with base directory if paths are provided
+        if llamacpp_embedding_path:
+            llamacpp_embedding_path = str(models_base_dir / llamacpp_embedding_path)
+        if llamacpp_chat_path:
+            llamacpp_chat_path = str(models_base_dir / llamacpp_chat_path)
+
         return cls(
             debug=os.getenv("DEBUG", "false").lower() == "true",
             environment=os.getenv("ENVIRONMENT", "development"),
@@ -93,14 +114,18 @@ class Settings:
             chat_model=os.getenv("CHAT_MODEL", "phi3:mini"),
             ollama_base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
 
-            # llama.cpp
-            llamacpp_embedding_model_path=os.getenv("LLAMACPP_EMBEDDING_MODEL_PATH"),
-            llamacpp_chat_model_path=os.getenv("LLAMACPP_CHAT_MODEL_PATH"),
+            # llama.cpp - now using full paths
+            llamacpp_embedding_model_path=llamacpp_embedding_path,
+            llamacpp_chat_model_path=llamacpp_chat_path,
             llamacpp_n_ctx=int(os.getenv("LLAMACPP_N_CTX", "2048")),
             llamacpp_n_batch=int(os.getenv("LLAMACPP_N_BATCH", "512")),
             llamacpp_n_threads=int(os.getenv("LLAMACPP_N_THREADS")) if os.getenv("LLAMACPP_N_THREADS") else None,
             llamacpp_temperature=float(os.getenv("LLAMACPP_TEMPERATURE", "0.7")),
             llamacpp_max_tokens=int(os.getenv("LLAMACPP_MAX_TOKENS", "512")),
+
+            # llama-server
+            llama_server_host=os.getenv("LLAMA_SERVER_HOST", "127.0.0.1"),
+            llama_server_port=int(os.getenv("LLAMA_SERVER_PORT", "8080")),
 
             # Other settings
             log_level=os.getenv("LOG_LEVEL", "INFO"),
