@@ -1,0 +1,80 @@
+import { useState } from 'react';
+import { format } from 'date-fns';
+import ReactMarkdown from 'react-markdown';
+import { Button } from './ui/button';
+import { User, Bot, Copy, Check } from 'lucide-react';
+import { Message } from '../api/chat';
+import { markdownComponents } from '../utils/markdownConfig';
+
+interface ChatMessageProps {
+  message: Message;
+}
+
+export const ChatMessage = ({ message }: ChatMessageProps) => {
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const formatTimestamp = (timestamp: number) => {
+    return format(new Date(timestamp), 'h:mm a');
+  };
+
+  const handleCopy = async (messageId: string, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedId(messageId);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy text:', err);
+    }
+  };
+
+  return (
+    <div className="space-y-2 animate-fade-in">
+      {/* User Question */}
+      <div className="flex justify-end gap-2">
+        <div className="flex flex-col items-end gap-1 max-w-[80%]">
+          <div className="glass-message bg-gradient-to-br from-sky-400/90 to-cyan-500/90 text-white rounded-lg px-4 py-2 w-full whitespace-pre-wrap transition-all hover:scale-[1.02] hover:shadow-lg">
+            {message.question}
+          </div>
+          <span className="text-xs text-muted-foreground px-1">
+            {formatTimestamp(message.timestamp)}
+          </span>
+        </div>
+        <div className="glass-avatar bg-gradient-to-br from-sky-400 to-cyan-500 text-white rounded-full p-2 h-8 w-8 flex items-center justify-center flex-shrink-0">
+          <User className="h-4 w-4" />
+        </div>
+      </div>
+
+      {/* Bot Answer */}
+      <div className="flex justify-start gap-2">
+        <div className="glass-avatar bg-gradient-to-br from-primary to-accent text-primary-foreground rounded-full p-2 h-8 w-8 flex items-center justify-center flex-shrink-0">
+          <Bot className="h-4 w-4" />
+        </div>
+        <div className="flex flex-col items-start gap-1 max-w-[80%]">
+          <div className="relative group glass-message bg-secondary/40 text-secondary-foreground rounded-lg px-4 py-2 w-full transition-all hover:scale-[1.02] hover:shadow-lg">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute top-2 right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={() => handleCopy(message.id, message.answer)}
+            >
+              {copiedId === message.id ? (
+                <Check className="h-3 w-3 text-green-500" />
+              ) : (
+                <Copy className="h-3 w-3" />
+              )}
+            </Button>
+            <ReactMarkdown
+              className="markdown-content"
+              components={markdownComponents}
+            >
+              {message.answer}
+            </ReactMarkdown>
+          </div>
+          <span className="text-xs text-muted-foreground px-1">
+            {formatTimestamp(message.timestamp)}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+};
