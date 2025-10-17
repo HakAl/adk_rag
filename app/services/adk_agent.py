@@ -2,8 +2,6 @@
 Google ADK Agent service with multi-provider tool support.
 """
 import uuid
-import ast
-import subprocess
 from typing import Optional
 
 from google.adk.agents import LlmAgent
@@ -16,88 +14,7 @@ from config import settings, logger
 from app.services.rag import RAGService
 from app.services.rag_anthropic import RAGAnthropicService
 from app.services.rag_google import RAGGoogleService
-
-
-# Define standalone tool functions (not methods)
-def validate_code(code: str, language: str) -> str:
-    """
-    Validate code syntax for various programming languages.
-
-    Args:
-        code: Code to validate
-        language: Programming language (python, javascript, json)
-
-    Returns:
-        Validation result with details
-    """
-    # Default to python if language is empty
-    if not language or not language.strip():
-        language = "python"
-
-    language = language.lower().strip()
-    logger.debug(f"[Tool] validate_code called for {language}")
-
-    try:
-        if language == "python":
-            return _validate_python(code)
-        elif language in ["javascript", "js"]:
-            return _validate_javascript(code)
-        elif language == "json":
-            return _validate_json(code)
-        else:
-            return f"⚠️ Language '{language}' not supported. Supported: python, javascript, json"
-    except Exception as e:
-        logger.error(f"Code validation error: {e}")
-        return f"❌ Validation error: {str(e)}"
-
-
-def _validate_python(code: str) -> str:
-    """Validate Python code syntax."""
-    try:
-        ast.parse(code)
-        return "✅ Python code syntax is valid."
-    except SyntaxError as e:
-        return f"❌ Python syntax error on line {e.lineno}: {e.msg}\n  {e.text or ''}"
-    except Exception as e:
-        return f"❌ Python validation error: {str(e)}"
-
-
-def _validate_javascript(code: str) -> str:
-    """Validate JavaScript code syntax using Node.js if available."""
-    try:
-        result = subprocess.run(
-            ['node', '--check', '-'],
-            input=code,
-            text=True,
-            capture_output=True,
-            timeout=5
-        )
-
-        if result.returncode == 0:
-            return "✅ JavaScript code syntax is valid."
-        else:
-            return f"❌ JavaScript syntax error:\n{result.stderr}"
-
-    except FileNotFoundError:
-        if code.strip():
-            return "⚠️ JavaScript validation requires Node.js (not installed). Basic check: code is non-empty."
-        return "❌ JavaScript code is empty."
-    except subprocess.TimeoutExpired:
-        return "❌ JavaScript validation timed out."
-    except Exception as e:
-        return f"❌ JavaScript validation error: {str(e)}"
-
-
-def _validate_json(code: str) -> str:
-    """Validate JSON syntax."""
-    import json
-    try:
-        json.loads(code)
-        return "✅ JSON syntax is valid."
-    except json.JSONDecodeError as e:
-        return f"❌ JSON syntax error at line {e.lineno}, column {e.colno}: {e.msg}"
-    except Exception as e:
-        return f"❌ JSON validation error: {str(e)}"
+from app.tools import validate_code, create_rag_tools
 
 
 class ADKAgentService:
@@ -152,94 +69,20 @@ class ADKAgentService:
 
         # Configure model based on provider type
         if settings.provider_type == 'llamacpp':
-            # For llama.cpp, try to connect to llama-server (OpenAI-compatible API)
-            # User must run: ./llama-server -m model.gguf --port 8080
-            logger.info("Configuring ADK for llama.cpp via llama-server")
-
-            # Check if llama-server is running
-            try:
-                import requests
-                llama_server_url = f"http://{settings.llama_server_host}:{settings.llama_server_port}"
-                response = requests.get(f"{llama_server_url}/health", timeout=2)
-                if response.status_code == 200:
-                    logger.info("✓ llama-server detected, tool calling enabled")
-                    tools_enabled = True
-                else:
-                    logger.warning("✗ llama-server not responding, tools disabled")
-                    tools_enabled = False
-            except Exception:
-                logger.warning(
-                    f"✗ llama-server not running at {settings.llama_server_host}:{settings.llama_server_port}, tools disabled")
-                tools_enabled = False
-
-            local_llm = LiteLlm(
-                model="openai/local-model",
-                api_base=f"http://{settings.llama_server_host}:{settings.llama_server_port}/v1",
-                api_key="dummy",  # llama-server doesn't need auth, but LiteLLM requires this field
-                supports_function_calling=tools_enabled
-            )
-
+            local_llm, tools_enabled = self._configure_llamacpp()
         elif settings.provider_type == 'ollama':
-            # For Ollama, use ollama_chat which has native tool calling
-            logger.info(f"Configuring ADK for Ollama with model: {settings.chat_model}")
-            local_llm = LiteLlm(
-                model=f"ollama_chat/{settings.chat_model}",
-                supports_function_calling=True
-            )
-            tools_enabled = True
-
+            local_llm, tools_enabled = self._configure_ollama()
         else:
             raise ValueError(f"Unsupported provider for ADK: {settings.provider_type}")
 
-        # Build list of available tools if enabled
+        # Build tools and instructions
         if tools_enabled:
-            tools = [
-                self._create_rag_query_tool(),
-                validate_code
-            ]
-
-            if self.rag_anthropic_service:
-                tools.append(self._create_rag_anthropic_tool())
-
-            if self.rag_google_service:
-                tools.append(self._create_rag_google_tool())
-
-            # Build instruction with tool descriptions
-            instruction_parts = [
-                "You are a helpful assistant. When the user asks a question:\n"
-                "1. If it's about code validation or syntax checking, use the validate_code tool\n"
-                "2. If it requires information from documents in the knowledge base, use the appropriate RAG tool\n"
-                "3. For general questions or explanations, answer directly using your knowledge\n\n"
-                "Available tools:\n"
-                "- validate_code(code, language): Validate code syntax (supports python, javascript, json)\n"
-                "- rag_query(query): Use for queries that need information from the knowledge base (fast, local)"
-            ]
-
-            if self.rag_anthropic_service:
-                instruction_parts.append(
-                    "\n- rag_query_anthropic(query): Use when you need the knowledge base AND complex reasoning"
-                )
-
-            if self.rag_google_service:
-                instruction_parts.append(
-                    "\n- rag_query_google(query): Use when you need the knowledge base for factual queries"
-                )
-
-            instruction_parts.append(
-                "\n\nIMPORTANT: Only use these specific tools when needed. "
-                "For general questions, code explanations, or common knowledge, answer directly without using tools.\n"
-                "Always provide a clear, helpful response to the user."
-            )
+            tools = self._build_tools()
+            instruction = self._build_instruction_with_tools()
         else:
-            # No tools available - simple chat agent
             tools = []
-            instruction_parts = [
-                "You are a helpful assistant. Answer questions directly using your knowledge. "
-                "Provide clear, concise, and accurate responses to the best of your ability."
-            ]
+            instruction = self._build_instruction_without_tools()
             logger.warning("Tools disabled - agent will function as a basic chat assistant")
-
-        instruction = "".join(instruction_parts)
 
         agent = LlmAgent(
             name="rag_assistant",
@@ -251,65 +94,110 @@ class ADKAgentService:
 
         return agent
 
-    def _create_rag_query_tool(self):
-        """Create RAG query tool as a closure."""
-        rag_service = self.rag_service
+    def _configure_llamacpp(self) -> tuple[LiteLlm, bool]:
+        """
+        Configure llama.cpp provider.
 
-        def rag_query(query: str) -> str:
-            """
-            Query the local knowledge base using RAG.
+        Returns:
+            Tuple of (LiteLlm instance, tools_enabled)
+        """
+        logger.info("Configuring ADK for llama.cpp via llama-server")
 
-            Args:
-                query: User's question
+        # Check if llama-server is running
+        try:
+            import requests
+            llama_server_url = f"http://{settings.llama_server_host}:{settings.llama_server_port}"
+            response = requests.get(f"{llama_server_url}/health", timeout=2)
+            if response.status_code == 200:
+                logger.info("✓ llama-server detected, tool calling enabled")
+                tools_enabled = True
+            else:
+                logger.warning("✗ llama-server not responding, tools disabled")
+                tools_enabled = False
+        except Exception:
+            logger.warning(
+                f"✗ llama-server not running at {settings.llama_server_host}:{settings.llama_server_port}, tools disabled")
+            tools_enabled = False
 
-            Returns:
-                Answer with citations
-            """
-            logger.debug(f"[Tool] rag_query (local) called: '{query}'")
-            answer, _ = rag_service.query(query)
-            return answer
+        local_llm = LiteLlm(
+            model="openai/local-model",
+            api_base=f"http://{settings.llama_server_host}:{settings.llama_server_port}/v1",
+            api_key="dummy",
+            supports_function_calling=tools_enabled
+        )
 
-        return rag_query
+        return local_llm, tools_enabled
 
-    def _create_rag_anthropic_tool(self):
-        """Create Anthropic RAG query tool as a closure."""
-        rag_anthropic_service = self.rag_anthropic_service
+    def _configure_ollama(self) -> tuple[LiteLlm, bool]:
+        """
+        Configure Ollama provider.
 
-        def rag_query_anthropic(query: str) -> str:
-            """
-            Query the knowledge base using Anthropic Claude for complex reasoning.
+        Returns:
+            Tuple of (LiteLlm instance, tools_enabled)
+        """
+        logger.info(f"Configuring ADK for Ollama with model: {settings.chat_model}")
+        local_llm = LiteLlm(
+            model=f"ollama_chat/{settings.chat_model}",
+            supports_function_calling=True
+        )
+        return local_llm, True
 
-            Args:
-                query: User's question
+    def _build_tools(self) -> list:
+        """
+        Build list of available tools.
 
-            Returns:
-                Answer with citations
-            """
-            logger.debug(f"[Tool] rag_query_anthropic called: '{query}'")
-            answer, _ = rag_anthropic_service.query(query)
-            return answer
+        Returns:
+            List of tool functions
+        """
+        # Start with validation tool
+        tools = [validate_code]
 
-        return rag_query_anthropic
+        # Add RAG tools
+        rag_tools = create_rag_tools(
+            rag_service=self.rag_service,
+            rag_anthropic_service=self.rag_anthropic_service,
+            rag_google_service=self.rag_google_service
+        )
+        tools.extend(rag_tools)
 
-    def _create_rag_google_tool(self):
-        """Create Google RAG query tool as a closure."""
-        rag_google_service = self.rag_google_service
+        return tools
 
-        def rag_query_google(query: str) -> str:
-            """
-            Query the knowledge base using Google Gemini.
+    def _build_instruction_with_tools(self) -> str:
+        """Build instruction text when tools are enabled."""
+        instruction_parts = [
+            "You are a helpful assistant. When the user asks a question:\n"
+            "1. If it's about code validation or syntax checking, use the validate_code tool\n"
+            "2. If it requires information from documents in the knowledge base, use the appropriate RAG tool\n"
+            "3. For general questions or explanations, answer directly using your knowledge\n\n"
+            "Available tools:\n"
+            "- validate_code(code, language): Validate code syntax (supports python, javascript, json)\n"
+            "- rag_query(query): Use for queries that need information from the knowledge base (fast, local)"
+        ]
 
-            Args:
-                query: User's question
+        if self.rag_anthropic_service:
+            instruction_parts.append(
+                "\n- rag_query_anthropic(query): Use when you need the knowledge base AND complex reasoning"
+            )
 
-            Returns:
-                Answer with citations
-            """
-            logger.debug(f"[Tool] rag_query_google called: '{query}'")
-            answer, _ = rag_google_service.query(query)
-            return answer
+        if self.rag_google_service:
+            instruction_parts.append(
+                "\n- rag_query_google(query): Use when you need the knowledge base for factual queries"
+            )
 
-        return rag_query_google
+        instruction_parts.append(
+            "\n\nIMPORTANT: Only use these specific tools when needed. "
+            "For general questions, code explanations, or common knowledge, answer directly without using tools.\n"
+            "Always provide a clear, helpful response to the user."
+        )
+
+        return "".join(instruction_parts)
+
+    def _build_instruction_without_tools(self) -> str:
+        """Build instruction text when tools are disabled."""
+        return (
+            "You are a helpful assistant. Answer questions directly using your knowledge. "
+            "Provide clear, concise, and accurate responses to the best of your ability."
+        )
 
     async def create_session(self, user_id: str = "local_user") -> str:
         """
