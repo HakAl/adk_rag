@@ -4,6 +4,9 @@ FROM python:3.11-slim as builder
 # Set working directory
 WORKDIR /app
 
+# Build argument to determine provider
+ARG PROVIDER_TYPE=ollama
+
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
@@ -13,16 +16,27 @@ RUN apt-get update && apt-get install -y \
 
 # Copy requirements first for better caching
 COPY requirements.txt .
+COPY requirements.llamacpp.txt .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir --user -r requirements.txt
 
+# Conditionally install llama.cpp if needed
+RUN if [ "$PROVIDER_TYPE" = "llamacpp" ]; then \
+        apt-get update && apt-get install -y cmake && \
+        pip install --no-cache-dir --user -r requirements.llamacpp.txt && \
+        rm -rf /var/lib/apt/lists/*; \
+    fi
+
 # Production stage
 FROM python:3.11-slim
 
+# Build argument to determine provider
+ARG PROVIDER_TYPE=ollama
+
 # Create app user
 RUN useradd -m -u 1000 app && \
-    mkdir -p /app/data /app/chroma_db /app/logs && \
+    mkdir -p /app/data /app/chroma_db /app/logs /app/models/embeddings /app/models/chat && \
     chown -R app:app /app
 
 # Set working directory
@@ -50,7 +64,7 @@ ENV PYTHONUNBUFFERED=1
 RUN pip install --user -e .
 
 # Create volume mount points
-VOLUME ["/app/data", "/app/chroma_db", "/app/logs"]
+VOLUME ["/app/data", "/app/chroma_db", "/app/logs", "/app/models"]
 
 # Expose ports
 EXPOSE 8000

@@ -1,0 +1,3 @@
+# llama.cpp support - only install when PROVIDER_TYPE=llamacpp
+# Requires build tools: cmake, gcc, g++
+llama-cpp-python>=0.2.0

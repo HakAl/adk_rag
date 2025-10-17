@@ -20,6 +20,9 @@ install-dev:
 	pip install -e ".[dev]"
 	pip install pytest pytest-cov pytest-asyncio black pylint mypy isort
 
+install-llamacpp:
+	pip install -r requirements.llamacpp.txt
+
 test:
 	pytest tests/ -v
 
@@ -56,19 +59,39 @@ dev-setup: install-dev
 check: lint test
 	@echo "✅ All checks passed!"
 
-# Add these targets to your existing Makefile
+# Docker commands
 
 .PHONY: docker-build docker-up docker-down docker-logs docker-clean docker-restart docker-shell docker-dev
 
-# Production Docker commands
+# Production Docker commands - Ollama
 docker-build:
-	@echo "Building Docker images..."
-	docker-compose build
+	@echo "Building Docker images (Ollama)..."
+	PROVIDER_TYPE=ollama docker-compose build
+
+docker-build-llamacpp:
+	@echo "Building Docker images (llama.cpp)..."
+	PROVIDER_TYPE=llamacpp docker-compose build
 
 docker-up:
 	@echo "Starting Docker containers (production)..."
 	docker-compose up -d
 	@echo "✅ Services started. Use 'make docker-logs' to view logs"
+
+docker-up-ollama:
+	@echo "Starting with Ollama provider..."
+	PROVIDER_TYPE=ollama docker-compose --profile ollama up -d
+
+docker-up-llamacpp:
+	@echo "Starting with llama.cpp provider..."
+	@if [ ! -d "./models/embeddings" ] || [ ! -d "./models/chat" ]; then \
+		echo "❌ Error: ./models directory structure not found!"; \
+		echo "Please create: ./models/embeddings/ and ./models/chat/"; \
+		echo "Then place your GGUF models in these directories"; \
+		exit 1; \
+	fi
+	@echo "Checking for model files..."
+	@ls -lh ./models/embeddings/ ./models/chat/ 2>/dev/null || echo "⚠️  Warning: Model directories are empty"
+	PROVIDER_TYPE=llamacpp docker-compose up -d rag-agent
 
 docker-down:
 	@echo "Stopping Docker containers..."
@@ -118,12 +141,28 @@ docker-dev:
 	docker-compose -f docker-compose.dev.yml up
 
 docker-dev-build:
-	@echo "Building development Docker images..."
-	docker-compose -f docker-compose.dev.yml build
+	@echo "Building development Docker images (Ollama)..."
+	PROVIDER_TYPE=ollama docker-compose -f docker-compose.dev.yml build
+
+docker-dev-build-llamacpp:
+	@echo "Building development Docker images (llama.cpp)..."
+	PROVIDER_TYPE=llamacpp docker-compose -f docker-compose.dev.yml build
 
 docker-dev-up:
 	@echo "Starting development containers in background..."
 	docker-compose -f docker-compose.dev.yml up -d
+
+docker-dev-up-ollama:
+	@echo "Starting dev with Ollama provider..."
+	PROVIDER_TYPE=ollama docker-compose -f docker-compose.dev.yml --profile ollama up -d
+
+docker-dev-up-llamacpp:
+	@echo "Starting dev with llama.cpp provider..."
+	@if [ ! -d "./models/embeddings" ] || [ ! -d "./models/chat" ]; then \
+		echo "❌ Error: ./models directory structure not found!"; \
+		exit 1; \
+	fi
+	PROVIDER_TYPE=llamacpp docker-compose -f docker-compose.dev.yml up -d rag-agent-dev
 
 docker-dev-down:
 	@echo "Stopping development containers..."
@@ -145,14 +184,19 @@ docker-dev-clean:
 	docker-compose -f docker-compose.dev.yml down -v
 
 # Complete Docker setup
-docker-setup: docker-build docker-up
+docker-setup: docker-build docker-up-ollama
 	@echo "Waiting for services to be ready..."
 	@sleep 15
 	@echo "Pulling models..."
 	@make docker-pull-models
 	@echo "✅ Docker setup complete!"
 
-docker-dev-setup: docker-dev-build docker-dev-up
+docker-setup-llamacpp: docker-build-llamacpp
+	@echo "Setting up llama.cpp provider..."
+	@make docker-up-llamacpp
+	@echo "✅ llama.cpp Docker setup complete!"
+
+docker-dev-setup: docker-dev-build docker-dev-up-ollama
 	@echo "Waiting for services to be ready..."
 	@sleep 15
 	@echo "Pulling models..."
@@ -160,7 +204,12 @@ docker-dev-setup: docker-dev-build docker-dev-up
 	@docker-compose -f docker-compose.dev.yml exec ollama ollama pull phi3:mini
 	@echo "✅ Development Docker setup complete!"
 
+docker-dev-setup-llamacpp: docker-dev-build-llamacpp
+	@echo "Setting up dev with llama.cpp provider..."
+	@make docker-dev-up-llamacpp
+	@echo "✅ Development llama.cpp setup complete!"
+
 # Quick start with Docker
 docker-quick:
 	@echo "Quick starting with Docker Compose..."
-	docker-compose up -d
+	docker-compose --profile ollama up -d

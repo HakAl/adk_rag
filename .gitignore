@@ -60,3 +60,8 @@ htmlcov/
 !data/.gitkeep
 
 /benchmark_results
+!models/.gitkeep
+!models/chat/.gitkeep
+!models/embeddings/.gitkeep
+/models/embeddings/*
+/models/chat/*

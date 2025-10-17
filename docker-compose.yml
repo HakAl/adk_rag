@@ -34,12 +34,16 @@ services:
     restart: unless-stopped
     networks:
       - rag-network
+    profiles:
+      - ollama
 
   # RAG Agent application
   rag-agent:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        PROVIDER_TYPE: ${PROVIDER_TYPE:-ollama}
     container_name: rag-agent-app
     ports:
       - "8000:8000"
@@ -47,9 +51,11 @@ services:
       - ./data:/app/data
       - ./chroma_db:/app/chroma_db
       - ./logs:/app/logs
+      - ./models:/app/models
       - ./.env:/app/.env
     environment:
       - OLLAMA_BASE_URL=http://ollama:11434
+      - PROVIDER_TYPE=${PROVIDER_TYPE:-ollama}
       - ENVIRONMENT=production
       - DEBUG=false
       - LOG_TO_FILE=true
