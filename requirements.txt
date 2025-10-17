@@ -36,3 +36,10 @@ anthropic>=0.39.0
 
 # Google Provider
 google-generativeai>=0.8.0
+
+# HTTP client for API communication
+httpx>=0.25.0
+
+# Testing (if not already present)
+pytest>=7.4.0
+pytest-asyncio>=0.21.0

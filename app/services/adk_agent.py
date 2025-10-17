@@ -67,30 +67,27 @@ class ADKAgentService:
 
         # Enhanced instruction to help agent choose the right tool
         instruction = (
-            "You are a helpful and knowledgeable RAG assistant with access to multiple AI providers. "
-            "When the user asks a question, choose the most appropriate tool:\n"
-            "- rag_query(): Use for general queries (fast, local processing)\n"
+            "You are a helpful assistant. When the user asks a question:\n"
+            "1. If it's about code, debugging, or general knowledge, answer directly using your knowledge\n"
+            "2. If it requires information from documents in the knowledge base, use the appropriate RAG tool\n\n"
+            "Available RAG tools:\n"
+            "- rag_query(): Use for queries that need information from the knowledge base (fast, local)\n"
         )
 
         if self.rag_anthropic_service:
             instruction += (
-                "- rag_query_anthropic(): Use for complex reasoning, analysis, or when high-quality "
-                "responses are needed. Anthropic Claude excels at nuanced understanding.\n"
+                "- rag_query_anthropic(): Use when you need the knowledge base AND complex reasoning\n"
             )
 
         if self.rag_google_service:
             instruction += (
-                "- rag_query_google(): Use for factual queries, summaries, or when you need "
-                "fast responses. Google Gemini is excellent for information retrieval.\n"
+                "- rag_query_google(): Use when you need the knowledge base for factual queries\n"
             )
 
         instruction += (
-            "\nConsider query characteristics:\n"
-            "- Simple factual questions → rag_query() or rag_query_google()\n"
-            "- Complex analysis/reasoning → rag_query_anthropic()\n"
-            "- Technical deep-dives → rag_query_anthropic()\n"
-            "- Quick summaries → rag_query_google() or rag_query()\n"
-            "\nProvide accurate, helpful answers based on the retrieved information."
+            "\nIMPORTANT: Only use RAG tools when the answer requires information from the knowledge base. "
+            "For general questions, code review, or common knowledge, answer directly without using tools.\n"
+            "Always provide a clear, helpful response to the user."
         )
 
         agent = LlmAgent(
@@ -185,7 +182,8 @@ class ADKAgentService:
         """
         logger.info(f"Processing chat message for session {session_id}")
 
-        result = await self.runner.run(
+        # Runner.run() returns a generator that yields events
+        result_generator = self.runner.run(
             user_id=user_id,
             session_id=session_id,
             new_message=types.Content(
@@ -194,10 +192,46 @@ class ADKAgentService:
             )
         )
 
-        # Extract text from response
-        if result and result.messages:
-            last_message = result.messages[-1]
-            if last_message.parts:
-                return last_message.parts[0].text
+        # Iterate through events and collect responses
+        final_response = None
+        for event in result_generator:
+            # Log event details for debugging
+            logger.debug(f"Event type: {type(event).__name__}")
 
-        return "No response generated"
+            # Try to extract response from various event attributes
+            # Option 1: Check for output_key in state
+            if hasattr(event, 'state') and hasattr(event.state, self.agent.output_key):
+                response = getattr(event.state, self.agent.output_key)
+                if response:
+                    final_response = response
+                    logger.debug(f"Found response in state.{self.agent.output_key}")
+
+            # Option 2: Direct output_key attribute
+            elif hasattr(event, self.agent.output_key):
+                response = getattr(event, self.agent.output_key)
+                if response:
+                    final_response = response
+                    logger.debug(f"Found response in {self.agent.output_key}")
+
+            # Option 3: Check content
+            elif hasattr(event, 'content'):
+                if isinstance(event.content, str):
+                    final_response = event.content
+                    logger.debug("Found response in content (string)")
+                elif hasattr(event.content, 'parts') and event.content.parts:
+                    final_response = event.content.parts[0].text
+                    logger.debug("Found response in content.parts")
+
+        if final_response is None:
+            logger.error("No response found in any event")
+            return "I apologize, but I couldn't generate a proper response. Please try again."
+
+        # Clean up the response if it contains tool metadata
+        response_str = str(final_response)
+
+        # If response looks like raw tool calls/JSON, that's an error
+        if response_str.strip().startswith('{"name":') or '"parameters"' in response_str:
+            logger.warning(f"Agent returned tool metadata instead of answer: {response_str[:200]}")
+            return "I apologize, but I had trouble processing that request. Please try rephrasing your question."
+
+        return response_str

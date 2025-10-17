@@ -12,17 +12,21 @@ class Settings:
     """Application settings."""
     
     # Application
-    app_name: str = "RAG Agent"
+    app_name: str = "VIBE Agent"
     version: str = "1.0.0"
     debug: bool = False
     environment: str = "development"
     
+    # API Configuration
+    api_base_url: str = "http://localhost:8000"
+    api_timeout: int = 180  # 3 minutes for agent processing (was 30)
+
     # Paths
     base_dir: Path = field(default_factory=lambda: Path(__file__).resolve().parent.parent)
     data_dir: Path = field(init=False)
     vector_store_dir: Path = field(init=False)
     log_dir: Path = field(init=False)
-    
+
     # Vector Store
     collection_name: str = "adk_local_rag"
     chunk_size: int = 1024
@@ -66,6 +70,8 @@ class Settings:
         return cls(
             debug=os.getenv("DEBUG", "false").lower() == "true",
             environment=os.getenv("ENVIRONMENT", "development"),
+            api_base_url=os.getenv("API_BASE_URL", "http://localhost:8000"),
+            api_timeout=int(os.getenv("API_TIMEOUT", "180")),
             embedding_model=os.getenv("EMBEDDING_MODEL", "nomic-embed-text"),
             chat_model=os.getenv("CHAT_MODEL", "llama3.1:8b-instruct-q4_K_M"),
             ollama_base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),

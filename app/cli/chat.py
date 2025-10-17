@@ -7,38 +7,39 @@ from typing import Optional
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import InMemoryHistory
+import httpx
 
 from config import settings, logger
-from app.core.application import RAGAgentApp
+from app.api.client import APIClient
 
 
 class CLI:
     """Interactive command-line interface."""
 
-    def __init__(self, app: RAGAgentApp):
+    def __init__(self, api_client: APIClient):
         """
         Initialize CLI.
 
         Args:
-            app: RAGAgentApp instance
+            api_client: APIClient instance
         """
-        self.app = app
+        self.api_client = api_client
         self.user_id = "cli_user"
         self.session_id: Optional[str] = None
         self.prompt_session = PromptSession(history=InMemoryHistory())
 
-    def print_banner(self):
+    def print_banner(self, stats: dict):
         """Print welcome banner."""
         print("\n" + "=" * 70)
         print(f"  {settings.app_name} v{settings.version}")
         print("=" * 70)
         print(f"  Environment: {settings.environment}")
-        print(f"  Chat Model: {settings.chat_model}")
-        print(f"  Embedding Model: {settings.embedding_model}")
+        print(f"  API URL: {settings.api_base_url}")
+        print(f"  Chat Model: {stats['models']['chat']}")
+        print(f"  Embedding Model: {stats['models']['embedding']}")
         print("=" * 70)
 
         # Show vector store stats
-        stats = self.app.get_stats()
         vs_stats = stats['vector_store']
         print(f"\n  📚 Knowledge Base Status: {vs_stats['status']}")
         if vs_stats['status'] == 'ready':
@@ -53,11 +54,25 @@ class CLI:
 
     async def run(self):
         """Run the interactive CLI."""
-        self.print_banner()
+        try:
+            # Check API health
+            health = await self.api_client.health_check()
+            logger.info(f"Connected to API v{health['version']}")
 
-        # Create initial session
-        self.session_id = await self.app.create_session(self.user_id)
-        logger.info(f"Session created: {self.session_id}")
+            # Get initial stats
+            stats = await self.api_client.get_stats()
+            self.print_banner(stats)
+
+            # Create initial session
+            self.session_id = await self.api_client.create_session(self.user_id)
+            logger.info(f"Session created: {self.session_id}")
+
+        except httpx.HTTPError as e:
+            print(f"\n❌ Failed to connect to API at {settings.api_base_url}")
+            print(f"   Error: {e}")
+            print(f"\n   Make sure the FastAPI server is running:")
+            print(f"   uvicorn main:app --reload\n")
+            return
 
         while True:
             try:
@@ -74,22 +89,30 @@ class CLI:
                     break
 
                 if user_input.lower() == 'stats':
-                    self._print_stats()
+                    await self._print_stats()
                     continue
 
                 if user_input.lower() == 'new':
-                    self.session_id = await self.app.create_session(self.user_id)
+                    self.session_id = await self.api_client.create_session(self.user_id)
                     print(f"\n✅ New conversation started (Session: {self.session_id[:8]}...)")
                     continue
 
-                # Get response from agent
+                # Get response from agent via API
                 print("\n🤖 Assistant: ", end="", flush=True)
-                response = await self.app.chat(
-                    message=user_input,
-                    user_id=self.user_id,
-                    session_id=self.session_id
-                )
-                print(response)
+                print("🔄 Processing", end="", flush=True)
+
+                try:
+                    response = await self.api_client.chat(
+                        message=user_input,
+                        user_id=self.user_id,
+                        session_id=self.session_id
+                    )
+                    # Clear the "Processing..." line
+                    print("\r🤖 Assistant: " + " " * 20 + "\r🤖 Assistant: ", end="", flush=True)
+                    print(response)
+                except httpx.TimeoutException:
+                    print("\n⏱️  Request timed out. The agent might be processing a complex query.")
+                    print("   Try increasing the timeout in settings or simplifying your question.")
 
             except KeyboardInterrupt:
                 print("\n\n👋 Goodbye!\n")
@@ -97,44 +120,61 @@ class CLI:
             except EOFError:
                 print("\n\n👋 Goodbye!\n")
                 break
+            except httpx.HTTPError as e:
+                logger.error(f"API error: {e}")
+                print(f"\n❌ API Error: {e}")
             except Exception as e:
                 logger.error(f"Error in CLI: {e}")
                 print(f"\n❌ Error: {e}")
 
-    def _print_stats(self):
+    async def _print_stats(self):
         """Print application statistics."""
-        stats = self.app.get_stats()
-        print("\n" + "=" * 70)
-        print("  📊 Application Statistics")
-        print("=" * 70)
-        print(f"  App: {stats['app_name']} v{stats['version']}")
-        print(f"  Environment: {stats['environment']}")
-        print(f"\n  Vector Store:")
-        vs = stats['vector_store']
-        print(f"    Status: {vs['status']}")
-        print(f"    Collection: {vs['collection']}")
-        if vs['status'] == 'ready':
-            print(f"    Chunks: {vs['count']}")
-        print(f"\n  Models:")
-        print(f"    Embedding: {stats['models']['embedding']}")
-        print(f"    Chat: {stats['models']['chat']}")
-        print("=" * 70)
+        try:
+            stats = await self.api_client.get_stats()
+            print("\n" + "=" * 70)
+            print("  📊 Application Statistics")
+            print("=" * 70)
+            print(f"  App: {stats['app_name']} v{stats['version']}")
+            print(f"  Environment: {stats['environment']}")
+            print(f"\n  Vector Store:")
+            vs = stats['vector_store']
+            print(f"    Status: {vs['status']}")
+            print(f"    Collection: {vs['collection']}")
+            if vs['status'] == 'ready':
+                print(f"    Chunks: {vs['count']}")
+
+            # Show available providers
+            providers = stats.get('providers', {})
+            print(f"\n  Available Providers:")
+            print(f"    Local (Ollama): {'✅' if providers.get('local') else '❌'}")
+            print(f"    Anthropic (Claude): {'✅' if providers.get('anthropic') else '❌'}")
+            print(f"    Google (Gemini): {'✅' if providers.get('google') else '❌'}")
+
+            print(f"\n  Models:")
+            print(f"    Embedding: {stats['models']['embedding']}")
+            print(f"    Chat: {stats['models']['chat']}")
+            print("=" * 70)
+        except httpx.HTTPError as e:
+            print(f"\n❌ Failed to get stats: {e}")
 
 
 async def main():
     """Main entry point for CLI."""
-    try:
-        # Initialize application
-        app = RAGAgentApp()
+    # Use longer timeout for agent processing (default 30s is too short)
+    # Agent queries can take 1-3 minutes with local LLMs and RAG
+    api_client = APIClient(timeout=180)  # 3 minutes
 
+    try:
         # Run CLI
-        cli = CLI(app)
+        cli = CLI(api_client)
         await cli.run()
 
     except Exception as e:
         logger.error(f"Fatal error: {e}")
         print(f"\n❌ Fatal error: {e}\n")
         sys.exit(1)
+    finally:
+        await api_client.close()
 
 
 if __name__ == "__main__":
