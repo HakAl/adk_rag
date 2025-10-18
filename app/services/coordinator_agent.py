@@ -1,8 +1,8 @@
 """
-Coordinator Agent service with specialist delegation using ADK.
+Coordinator Agent service with specialist delegation using router-based classification.
 """
 import uuid
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
@@ -15,14 +15,16 @@ from app.services.rag import RAGService
 from app.services.rag_anthropic import RAGAnthropicService
 from app.services.rag_google import RAGGoogleService
 from app.services.specialized_agents import SpecializedAgentsFactory
+from app.services.router import RouterService
 
 
 class CoordinatorAgentService:
-    """Service for managing coordinator agent with specialist delegation."""
+    """Service for managing coordinator agent with router-based specialist delegation."""
 
     def __init__(
         self,
         rag_service: RAGService,
+        router_service: RouterService,
         rag_anthropic_service: Optional[RAGAnthropicService] = None,
         rag_google_service: Optional[RAGGoogleService] = None
     ):
@@ -31,16 +33,17 @@ class CoordinatorAgentService:
 
         Args:
             rag_service: RAGService instance (required)
+            router_service: RouterService instance (required)
             rag_anthropic_service: Optional RAGAnthropicService instance
             rag_google_service: Optional RAGGoogleService instance
         """
         self.rag_service = rag_service
+        self.router_service = router_service
         self.rag_anthropic_service = rag_anthropic_service
         self.rag_google_service = rag_google_service
         self.session_service = InMemorySessionService()
         self.provider_type = settings.provider_type
 
-        # Create specialized agents
         logger.info("Creating specialized agents via factory")
         self.factory = SpecializedAgentsFactory(
             rag_service=rag_service,
@@ -49,68 +52,61 @@ class CoordinatorAgentService:
         )
         self.specialist_agents = self.factory.create_all_agents()
 
-        # Keep reference to general_assistant for fallback
+        self.specialists_by_type = self._map_specialists()
+
         self.general_assistant = next(
             agent for agent in self.specialist_agents
             if agent.name == "general_assistant"
         )
 
-        # Create coordinator agent
-        self.coordinator = self._create_coordinator_agent()
-
-        # Create runner
-        self.runner = Runner(
-            agent=self.coordinator,
-            app_name=settings.app_name,
-            session_service=self.session_service
-        )
+        self.runners = self._create_specialist_runners()
 
         logger.info(
-            f"CoordinatorAgentService initialized with {len(self.specialist_agents)} specialists"
+            f"CoordinatorAgentService initialized with {len(self.specialist_agents)} specialists "
+            f"and router-based delegation"
         )
 
-    def _create_coordinator_model(self) -> LiteLlm:
-        """Create model for coordinator agent."""
-        if settings.provider_type == "ollama":
-            return LiteLlm(
-                model="ollama_chat/phi3:mini",  # Fast model for routing
-                supports_function_calling=True
+    def _map_specialists(self) -> Dict[str, LlmAgent]:
+        """
+        Map router classifications to specialist agents.
+
+        Returns:
+            Dict mapping router agent types to specialist agents
+        """
+        mapping = {}
+
+        for agent in self.specialist_agents:
+            if agent.name == "code_validator":
+                mapping["code_validation"] = agent
+            elif agent.name == "rag_specialist":
+                mapping["rag_query"] = agent
+            elif agent.name == "code_generator":
+                mapping["code_generation"] = agent
+            elif agent.name == "code_analyzer":
+                mapping["code_analysis"] = agent
+            elif agent.name == "reasoning_specialist":
+                mapping["complex_reasoning"] = agent
+            elif agent.name == "general_assistant":
+                mapping["general_chat"] = agent
+
+        logger.info(f"Mapped {len(mapping)} specialist types")
+        return mapping
+
+    def _create_specialist_runners(self) -> Dict[str, Runner]:
+        """
+        Create individual runners for each specialist.
+
+        Returns:
+            Dict mapping agent names to runners
+        """
+        runners = {}
+        for agent in self.specialist_agents:
+            runners[agent.name] = Runner(
+                agent=agent,
+                app_name=settings.app_name,
+                session_service=self.session_service
             )
-        else:  # llamacpp
-            return LiteLlm(
-                model="openai/local-model",
-                api_base=f"http://{settings.llama_server_host}:{settings.llama_server_port}/v1",
-                api_key="dummy",
-                supports_function_calling=True
-            )
-
-    def _create_coordinator_agent(self) -> LlmAgent:
-        """Create coordinator agent with specialist sub-agents."""
-        coordinator_model = self._create_coordinator_model()
-
-        # Build specialist descriptions for instruction
-        specialist_list = "\n".join([
-            f"- {agent.name}: {agent.description}"
-            for agent in self.specialist_agents
-        ])
-
-        coordinator = LlmAgent(
-            name="coordinator",
-            model=coordinator_model,
-            description="Routes user requests to appropriate specialist agents",
-            instruction=f"""You are a helpful coordinator assistant. Your job is to analyze the user's request and delegate it to the most appropriate specialist agent.
-
-Available specialists:
-{specialist_list}
-
-To delegate a request, use: transfer_to_agent(agent_name='specialist_name')
-
-Choose the specialist that best matches the user's needs based on their descriptions. If you're unsure or the request is simple casual conversation, use 'general_assistant'.""",
-            sub_agents=self.specialist_agents
-        )
-
-        logger.info(f"Coordinator agent created with {len(self.specialist_agents)} sub-agents")
-        return coordinator
+        return runners
 
     async def create_session(self, user_id: str = "local_user") -> str:
         """
@@ -140,7 +136,7 @@ Choose the specialist that best matches the user's needs based on their descript
         session_id: str
     ) -> str:
         """
-        Send a message and get a response via coordinator delegation.
+        Send a message and get a response via router-based specialist delegation.
 
         Args:
             message: User's message
@@ -153,8 +149,27 @@ Choose the specialist that best matches the user's needs based on their descript
         logger.info(f"Processing coordinator chat for session {session_id}")
 
         try:
-            # Use coordinator with automatic delegation
-            result_generator = self.runner.run_async(
+            routing_decision = self.router_service.route(message)
+
+            agent_type = routing_decision["primary_agent"]
+            confidence = routing_decision["confidence"]
+
+            logger.info(
+                f"Router classified as '{agent_type}' "
+                f"(confidence: {confidence:.2f})"
+            )
+
+            specialist = self.specialists_by_type.get(agent_type)
+
+            if specialist is None:
+                logger.warning(f"No specialist found for type '{agent_type}', using general_assistant")
+                specialist = self.general_assistant
+
+            runner = self.runners[specialist.name]
+
+            logger.info(f"Delegating to specialist: {specialist.name}")
+
+            result_generator = runner.run_async(
                 user_id=user_id,
                 session_id=session_id,
                 new_message=types.Content(
@@ -163,7 +178,6 @@ Choose the specialist that best matches the user's needs based on their descript
                 )
             )
 
-            # Collect events and look for final response
             final_response = None
             event_count = 0
 
@@ -171,7 +185,6 @@ Choose the specialist that best matches the user's needs based on their descript
                 event_count += 1
                 logger.debug(f"Event #{event_count}: {type(event).__name__}")
 
-                # Check if this is the final response
                 if event.is_final_response():
                     logger.info(f"Found final response in event #{event_count}")
                     if event.content and event.content.parts:
@@ -182,7 +195,7 @@ Choose the specialist that best matches the user's needs based on their descript
             logger.info(f"Total events processed: {event_count}")
 
             if final_response is None:
-                logger.error("No final response from coordinator, falling back to general assistant")
+                logger.error("No final response from specialist, falling back to general assistant")
                 return await self._fallback_to_general_assistant(message, user_id, session_id)
 
             return final_response
@@ -199,7 +212,7 @@ Choose the specialist that best matches the user's needs based on their descript
         session_id: str
     ) -> str:
         """
-        Fallback to general assistant if coordinator fails.
+        Fallback to general assistant if routing or specialist fails.
 
         Args:
             message: User's message
@@ -212,12 +225,7 @@ Choose the specialist that best matches the user's needs based on their descript
         logger.warning("Using fallback: general_assistant")
 
         try:
-            # Create a temporary runner for just the general assistant
-            fallback_runner = Runner(
-                agent=self.general_assistant,
-                app_name=settings.app_name,
-                session_service=self.session_service
-            )
+            fallback_runner = self.runners[self.general_assistant.name]
 
             result_generator = fallback_runner.run_async(
                 user_id=user_id,
@@ -233,7 +241,6 @@ Choose the specialist that best matches the user's needs based on their descript
                     if event.content and event.content.parts:
                         return event.content.parts[0].text
 
-            # If still no response, return default message
             return "I apologize, but I'm having trouble processing your request. Please try again."
 
         except Exception as fallback_error:
