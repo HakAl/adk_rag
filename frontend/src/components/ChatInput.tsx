@@ -24,8 +24,10 @@ export const ChatInput = ({ onSubmit, disabled, isLoading, error }: ChatInputPro
 
     // Set height based on content, respecting min and max
     const scrollHeight = textarea.scrollHeight;
-    const minHeight = 80; // min-h-[80px]
-    const maxHeight = 200; // max-h-[200px]
+    // Mobile: smaller min/max heights
+    const isMobile = window.innerWidth < 640;
+    const minHeight = isMobile ? 60 : 80;
+    const maxHeight = isMobile ? 150 : 200;
 
     const newHeight = Math.min(Math.max(scrollHeight, minHeight), maxHeight);
     textarea.style.height = `${newHeight}px`;
@@ -56,7 +58,7 @@ export const ChatInput = ({ onSubmit, disabled, isLoading, error }: ChatInputPro
 
   return (
     <div className="flex-shrink-0">
-      <form onSubmit={handleSubmit} className="flex gap-3 items-end">
+      <form onSubmit={handleSubmit} className="flex gap-2 sm:gap-3 items-end">
         <Textarea
           ref={textareaRef}
           value={input}
@@ -64,7 +66,7 @@ export const ChatInput = ({ onSubmit, disabled, isLoading, error }: ChatInputPro
           onKeyDown={handleKeyDown}
           placeholder="Type your message... (Shift+Enter for new line)"
           disabled={disabled || isLoading}
-          className="flex-1 min-h-[80px] max-h-[200px] resize-none transition-all focus:scale-[1.01] focus:mr-1 glass-input overflow-y-auto"
+          className="flex-1 min-h-[60px] sm:min-h-[80px] max-h-[150px] sm:max-h-[200px] resize-none transition-all focus:scale-[1.01] focus:mr-1 glass-input overflow-y-auto text-sm sm:text-base"
           rows={1}
           aria-label="Chat message input"
           aria-describedby={error ? errorId : undefined}
@@ -74,7 +76,7 @@ export const ChatInput = ({ onSubmit, disabled, isLoading, error }: ChatInputPro
           type="submit"
           disabled={disabled || isLoading || !input.trim()}
           size="icon"
-          className="h-10 w-10 transition-transform hover:scale-110 active:scale-95 glass-button"
+          className="h-11 w-11 sm:h-10 sm:w-10 transition-transform hover:scale-110 active:scale-95 glass-button flex-shrink-0"
           aria-label={isLoading ? 'Sending message' : 'Send message'}
         >
           {isLoading ? (
@@ -88,7 +90,7 @@ export const ChatInput = ({ onSubmit, disabled, isLoading, error }: ChatInputPro
       {error && (
         <p
           id={errorId}
-          className="text-red-400 text-sm mt-2 animate-fade-in"
+          className="text-red-400 text-xs sm:text-sm mt-2 animate-fade-in"
           role="alert"
           aria-live="polite"
         >

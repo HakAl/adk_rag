@@ -47,20 +47,26 @@ function App() {
           Skip to main content
         </a>
 
-        {/* Header */}
+        {/* Header - Mobile responsive */}
         <header className="flex-shrink-0 border-b border-border">
-          <div className="container mx-auto px-4 py-4">
-            <div className="flex items-center justify-between">
-              <h1 className="text-3xl font-bold text-primary">VIBE Agent</h1>
+          <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0">
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary">
+                VIBE Agent
+              </h1>
 
               {health && (
-                <div className="flex items-center gap-4 text-sm" role="status" aria-live="polite">
+                <div
+                  className="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm flex-wrap"
+                  role="status"
+                  aria-live="polite"
+                >
                   <span className="text-muted-foreground">Status:</span>
                   <span className="text-green-500 font-semibold" aria-label="System status">
                     {health.status}
                   </span>
-                  <span className="text-muted-foreground">Version:</span>
-                  <span className="text-muted-foreground" aria-label="Application version">
+                  <span className="text-muted-foreground hidden sm:inline">Version:</span>
+                  <span className="text-muted-foreground hidden sm:inline" aria-label="Application version">
                     {process.env.REACT_APP_VERSION || '0.1.0'}
                   </span>
                 </div>
@@ -68,27 +74,27 @@ function App() {
             </div>
 
             {loading && (
-              <p className="text-muted-foreground mt-2" role="status" aria-live="polite">
+              <p className="text-muted-foreground mt-2 text-sm" role="status" aria-live="polite">
                 Loading...
               </p>
             )}
 
             {error && (
-              <Card className="border-red-500 bg-red-950/20 mt-4" role="alert">
-                <CardHeader>
-                  <CardTitle className="text-red-500">Error</CardTitle>
+              <Card className="border-red-500 bg-red-950/20 mt-3 sm:mt-4" role="alert">
+                <CardHeader className="p-3 sm:p-6">
+                  <CardTitle className="text-red-500 text-base sm:text-lg">Error</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <p className="text-red-400">{error}</p>
+                <CardContent className="p-3 sm:p-6 pt-0">
+                  <p className="text-red-400 text-sm">{error}</p>
                 </CardContent>
               </Card>
             )}
           </div>
         </header>
 
-        {/* Chat Area - Full width, remaining height */}
+        {/* Chat Area - Full width, remaining height - Mobile optimized */}
         {health && (
-          <div className="flex-1 px-4 py-4 min-h-0 overflow-hidden">
+          <div className="flex-1 px-2 sm:px-4 py-2 sm:py-4 min-h-0 overflow-hidden">
             <Chat />
           </div>
         )}

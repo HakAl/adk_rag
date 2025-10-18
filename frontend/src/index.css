@@ -120,14 +120,21 @@
     box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
   }
 
-  /* Glass message bubbles - Enhanced for better contrast */
+  /* Glass message bubbles - Enhanced for better contrast - Mobile optimized */
   .glass-message {
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     border: 1px solid rgba(255, 255, 255, 0.2); /* Increased from 0.15 */
   }
 
-  /* Glass input - Enhanced background */
+  @media (max-width: 640px) {
+    .glass-message {
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+    }
+  }
+
+  /* Glass input - Enhanced background - Mobile optimized */
   .glass-input {
     background: rgba(255, 255, 255, 0.1); /* Increased from 0.05 */
     backdrop-filter: blur(8px);
@@ -137,6 +144,14 @@
 
   .dark .glass-input {
     background: rgba(255, 255, 255, 0.08); /* Increased from 0.03 */
+  }
+
+  /* Mobile: Reduce blur for performance */
+  @media (max-width: 640px) {
+    .glass-input {
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+    }
   }
 
   /* Glass button - Maintained good contrast */
@@ -192,6 +207,13 @@
     animation: gradient-rotate 3s ease infinite;
   }
 
+  /* Mobile: Disable animation for performance */
+  @media (max-width: 640px) {
+    .gradient-border {
+      animation: none;
+    }
+  }
+
   /* Skip to main content link for keyboard navigation */
   .skip-link {
     position: absolute;
@@ -206,5 +228,42 @@
 
   .skip-link:focus {
     top: 0;
+  }
+
+  /* Mobile-specific touch target improvements */
+  @media (max-width: 640px) {
+    /* Ensure minimum touch target size of 44x44px */
+    button,
+    [role="button"],
+    a {
+      min-height: 44px;
+      min-width: 44px;
+    }
+
+    /* Adjust text sizes for mobile readability */
+    .text-3xl {
+      font-size: 1.5rem; /* 24px instead of 30px */
+    }
+
+    .text-2xl {
+      font-size: 1.25rem; /* 20px instead of 24px */
+    }
+
+    .text-lg {
+      font-size: 1rem; /* 16px instead of 18px */
+    }
+  }
+
+  /* Markdown content - Mobile optimized */
+  .markdown-content {
+    @apply text-sm sm:text-base;
+  }
+
+  .markdown-content code {
+    @apply text-xs sm:text-sm;
+  }
+
+  .markdown-content pre {
+    @apply text-xs sm:text-sm overflow-x-auto;
   }
 }

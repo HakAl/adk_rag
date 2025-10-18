@@ -29,11 +29,11 @@ export const ChatMessage = ({ message }: ChatMessageProps) => {
 
   return (
     <div className="space-y-2 animate-fade-in">
-      {/* User Question */}
-      <div className="flex justify-end gap-2">
-        <div className="flex flex-col items-end gap-1 max-w-[80%]">
+      {/* User Question - Mobile optimized */}
+      <div className="flex justify-end gap-1 sm:gap-2">
+        <div className="flex flex-col items-end gap-1 max-w-[90%] sm:max-w-[85%] md:max-w-[80%]">
           <div
-            className="glass-message bg-gradient-to-br from-sky-400/90 to-cyan-500/90 text-white rounded-lg px-4 py-2 w-full whitespace-pre-wrap transition-all hover:scale-[1.02] hover:shadow-lg"
+            className="glass-message bg-gradient-to-br from-sky-400/90 to-cyan-500/90 text-white rounded-lg px-3 sm:px-4 py-2 w-full whitespace-pre-wrap transition-all hover:scale-[1.02] hover:shadow-lg text-sm sm:text-base"
             role="article"
             aria-label="User message"
           >
@@ -46,42 +46,42 @@ export const ChatMessage = ({ message }: ChatMessageProps) => {
           </span>
         </div>
         <div
-          className="glass-avatar bg-gradient-to-br from-sky-400 to-cyan-500 text-white rounded-full p-2 h-8 w-8 flex items-center justify-center flex-shrink-0"
+          className="glass-avatar bg-gradient-to-br from-sky-400 to-cyan-500 text-white rounded-full p-1.5 sm:p-2 h-7 w-7 sm:h-8 sm:w-8 flex items-center justify-center flex-shrink-0"
           aria-hidden="true"
         >
-          <User className="h-4 w-4" />
+          <User className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
         </div>
       </div>
 
-      {/* Bot Answer */}
-      <div className="flex justify-start gap-2">
+      {/* Bot Answer - Mobile optimized */}
+      <div className="flex justify-start gap-1 sm:gap-2">
         <div
-          className="glass-avatar bg-gradient-to-br from-primary to-accent text-primary-foreground rounded-full p-2 h-8 w-8 flex items-center justify-center flex-shrink-0"
+          className="glass-avatar bg-gradient-to-br from-primary to-accent text-primary-foreground rounded-full p-1.5 sm:p-2 h-7 w-7 sm:h-8 sm:w-8 flex items-center justify-center flex-shrink-0"
           aria-hidden="true"
         >
-          <Bot className="h-4 w-4" />
+          <Bot className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
         </div>
-        <div className="flex flex-col items-start gap-1 max-w-[80%]">
+        <div className="flex flex-col items-start gap-1 max-w-[90%] sm:max-w-[85%] md:max-w-[80%]">
           <div
-            className="relative group glass-message bg-secondary/40 text-secondary-foreground rounded-lg px-4 py-2 w-full transition-all hover:scale-[1.02] hover:shadow-lg"
+            className="relative group glass-message bg-secondary/40 text-secondary-foreground rounded-lg px-3 sm:px-4 py-2 w-full transition-all hover:scale-[1.02] hover:shadow-lg"
             role="article"
             aria-label="Assistant response"
           >
             <Button
               variant="ghost"
               size="icon"
-              className="absolute top-2 right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity focus:opacity-100"
+              className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 h-7 w-7 sm:h-6 sm:w-6 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity focus:opacity-100"
               onClick={() => handleCopy(message.id, message.answer)}
               aria-label={copiedId === message.id ? 'Copied to clipboard' : 'Copy message to clipboard'}
             >
               {copiedId === message.id ? (
-                <Check className="h-3 w-3 text-green-500" aria-hidden="true" />
+                <Check className="h-3 w-3" aria-hidden="true" />
               ) : (
                 <Copy className="h-3 w-3" aria-hidden="true" />
               )}
             </Button>
             <ReactMarkdown
-              className="markdown-content"
+              className="markdown-content text-sm sm:text-base"
               components={markdownComponents}
             >
               {message.answer}

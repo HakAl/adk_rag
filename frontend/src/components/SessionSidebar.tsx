@@ -45,34 +45,38 @@ export const SessionSidebar = ({
         />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar - Mobile optimized */}
       <aside
         className={`
-          fixed lg:relative inset-y-0 left-0 z-50 lg:w-1/4 w-80 transform transition-transform duration-200 ease-in-out
+          fixed lg:relative inset-y-0 left-0 z-50
+          w-full sm:w-80 lg:w-1/4
+          transform transition-transform duration-200 ease-in-out
           ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}
         aria-label="Chat history sidebar"
       >
         <Card className="h-full flex flex-col glass-card border-r">
-          {/* Header */}
-          <div className="p-4 border-b flex items-center justify-between flex-shrink-0">
-            <h2 className="text-lg font-semibold gradient-text">Chat History</h2>
+          {/* Header - Mobile optimized */}
+          <div className="p-3 sm:p-4 border-b flex items-center justify-between flex-shrink-0">
+            <h2 className="text-base sm:text-lg font-semibold gradient-text">
+              Chat History
+            </h2>
             <Button
               variant="ghost"
               size="icon"
               onClick={onClose}
-              className="lg:hidden"
+              className="lg:hidden h-9 w-9 sm:h-10 sm:w-10 hover:bg-red-500/20 hover:text-red-400 transition-colors"
               aria-label="Close sidebar"
             >
-              <X className="h-5 w-5" aria-hidden="true" />
+              <X className="h-5 w-5 sm:h-5 sm:w-5 text-foreground" aria-hidden="true" />
             </Button>
           </div>
 
-          {/* New Chat Button */}
-          <div className="p-4 flex-shrink-0">
+          {/* New Chat Button - Mobile optimized */}
+          <div className="p-3 sm:p-4 flex-shrink-0">
             <Button
               onClick={onNewSession}
-              className="w-full flex items-center gap-2 glass-button"
+              className="w-full flex items-center justify-center gap-2 glass-button h-11 sm:h-10 text-sm sm:text-base"
               aria-label="Start new chat conversation"
             >
               <MessageSquarePlus className="h-4 w-4" aria-hidden="true" />
@@ -80,13 +84,13 @@ export const SessionSidebar = ({
             </Button>
           </div>
 
-          {/* Sessions List */}
+          {/* Sessions List - Mobile optimized */}
           <nav
             className="flex-1 overflow-y-auto p-2"
             aria-label="Chat sessions"
           >
             {sessions.length === 0 ? (
-              <p className="text-center text-muted-foreground text-sm py-8">
+              <p className="text-center text-muted-foreground text-sm py-8 px-3">
                 No chat history yet
               </p>
             ) : (
@@ -125,7 +129,7 @@ export const SessionSidebar = ({
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-6 w-6 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                          className="h-8 w-8 sm:h-6 sm:w-6 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 transition-opacity flex-shrink-0"
                           onClick={(e) => {
                             e.stopPropagation();
                             if (window.confirm('Delete this chat?')) {
