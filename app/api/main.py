@@ -1,5 +1,5 @@
 """
-FastAPI application for RAG Agent.
+FastAPI application for RAG Agent with optional routing.
 """
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -98,17 +98,71 @@ async def chat(
     request: ChatRequest,
     app: RAGAgentApp = Depends(get_app)
 ):
-    """Send a chat message and get response."""
+    """
+    Send a chat message and get response.
+
+    This is the backwards-compatible endpoint that returns a simple response.
+    Use /chat/extended for responses with routing metadata.
+    """
+    try:
+        logger.info(f"Chat request received: user={request.user_id}, session={request.session_id}")
+
+        response = await app.chat(
+            message=request.message,
+            user_id=request.user_id,
+            session_id=request.session_id
+        )
+
+        logger.info(f"Chat response type: {type(response)}")
+        logger.info(f"Chat response length: {len(str(response))} chars")
+
+        result = ChatResponse(
+            response=response,
+            session_id=request.session_id,
+            routing_info=None  # Backwards compatible - no routing info
+        )
+
+        logger.info("Chat response created successfully")
+        return result
+
+    except Exception as e:
+        logger.error(f"Error in chat: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/chat/extended", response_model=ChatResponse)
+async def chat_extended(
+    request: ChatRequest,
+    app: RAGAgentApp = Depends(get_app)
+):
+    """
+    Send a chat message and get response with routing metadata.
+
+    If router is enabled (ROUTER_MODEL_PATH configured), routing metadata
+    will be included in the response showing which agent type handled the request.
+    """
     try:
         response = await app.chat(
             message=request.message,
             user_id=request.user_id,
             session_id=request.session_id
         )
+
+        # Get routing info if available
+        routing_info = None
+        last_routing = app.get_last_routing()
+        if last_routing:
+            routing_info = {
+                "agent": last_routing["primary_agent"],
+                "confidence": last_routing["confidence"],
+                "reasoning": last_routing["reasoning"]
+            }
+
         return ChatResponse(
             response=response,
-            session_id=request.session_id
+            session_id=request.session_id,
+            routing_info=routing_info
         )
     except Exception as e:
-        logger.error(f"Error in chat: {e}")
+        logger.error(f"Error in chat/extended: {e}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -64,6 +64,14 @@ class Settings:
     llama_server_host: str = "127.0.0.1"
     llama_server_port: int = 8080
 
+    # Router Configuration (Optional - if not set, router is disabled)
+    router_model_path: Optional[str] = None
+    router_n_ctx: int = 2048
+    router_n_batch: int = 512
+    router_n_threads: Optional[int] = None
+    router_temperature: float = 0.3  # Lower for deterministic routing
+    router_max_tokens: int = 256
+
     # Session Management
     session_timeout_minutes: int = 60
 
@@ -93,12 +101,15 @@ class Settings:
         # Get relative paths and join with base directory
         llamacpp_embedding_path = os.getenv("LLAMACPP_EMBEDDING_MODEL_PATH")
         llamacpp_chat_path = os.getenv("LLAMACPP_CHAT_MODEL_PATH")
+        router_model_path = os.getenv("ROUTER_MODEL_PATH")
 
         # Join with base directory if paths are provided
         if llamacpp_embedding_path:
             llamacpp_embedding_path = str(models_base_dir / llamacpp_embedding_path)
         if llamacpp_chat_path:
             llamacpp_chat_path = str(models_base_dir / llamacpp_chat_path)
+        if router_model_path:
+            router_model_path = str(models_base_dir / router_model_path)
 
         return cls(
             debug=os.getenv("DEBUG", "false").lower() == "true",
@@ -126,6 +137,14 @@ class Settings:
             # llama-server
             llama_server_host=os.getenv("LLAMA_SERVER_HOST", "127.0.0.1"),
             llama_server_port=int(os.getenv("LLAMA_SERVER_PORT", "8080")),
+
+            # Router (Optional)
+            router_model_path=router_model_path,
+            router_n_ctx=int(os.getenv("ROUTER_N_CTX", "2048")),
+            router_n_batch=int(os.getenv("ROUTER_N_BATCH", "512")),
+            router_n_threads=int(os.getenv("ROUTER_N_THREADS")) if os.getenv("ROUTER_N_THREADS") else None,
+            router_temperature=float(os.getenv("ROUTER_TEMPERATURE", "0.3")),
+            router_max_tokens=int(os.getenv("ROUTER_MAX_TOKENS", "256")),
 
             # Other settings
             log_level=os.getenv("LOG_LEVEL", "INFO"),

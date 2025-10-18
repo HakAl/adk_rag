@@ -1,26 +1,30 @@
 """
-Pydantic models for API requests and responses.
+API request/response models.
 """
-from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any
+from pydantic import BaseModel, Field
 
 
 class ChatRequest(BaseModel):
     """Chat request model."""
-    message: str = Field(..., min_length=1, description="User message")
-    user_id: str = Field(..., min_length=1, description="User identifier")
-    session_id: str = Field(..., min_length=1, description="Session identifier")
+    message: str = Field(..., description="User's message")
+    user_id: str = Field(default="local_user", description="User identifier")
+    session_id: str = Field(..., description="Session identifier")
 
 
 class ChatResponse(BaseModel):
     """Chat response model."""
-    response: str = Field(..., description="Assistant response")
+    response: str = Field(..., description="Agent's response")
     session_id: str = Field(..., description="Session identifier")
+    routing_info: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Routing metadata (only included when router is enabled)"
+    )
 
 
 class SessionCreateRequest(BaseModel):
     """Session creation request."""
-    user_id: str = Field(default="api_user", description="User identifier")
+    user_id: str = Field(default="local_user", description="User identifier")
 
 
 class SessionCreateResponse(BaseModel):
@@ -29,30 +33,24 @@ class SessionCreateResponse(BaseModel):
     user_id: str = Field(..., description="User identifier")
 
 
+class StatsResponse(BaseModel):
+    """Application statistics response."""
+    provider_type: str
+    embedding_model: Optional[str] = None
+    chat_model: Optional[str] = None
+    vector_store_collection: str
+    document_count: int
+    router_enabled: bool = Field(
+        default=False,
+        description="Whether routing service is enabled"
+    )
+    router_model: Optional[str] = Field(
+        default=None,
+        description="Router model path if enabled"
+    )
+
+
 class HealthResponse(BaseModel):
     """Health check response."""
-    status: str = Field(..., description="Health status")
-    version: str = Field(..., description="Application version")
-
-
-class VectorStoreStats(BaseModel):
-    """Vector store statistics."""
     status: str
-    count: int
-    collection: str
-    embedding_model: Optional[str] = None
-
-
-class ModelsInfo(BaseModel):
-    """Models information."""
-    embedding: str
-    chat: str
-
-
-class StatsResponse(BaseModel):
-    """Statistics response."""
-    app_name: str
     version: str
-    environment: str
-    vector_store: Dict[str, Any]
-    models: Dict[str, str]

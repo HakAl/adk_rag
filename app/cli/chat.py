@@ -35,17 +35,33 @@ class CLI:
         print("=" * 70)
         print(f"  Environment: {settings.environment}")
         print(f"  API URL: {settings.api_base_url}")
-        print(f"  Chat Model: {stats['models']['chat']}")
-        print(f"  Embedding Model: {stats['models']['embedding']}")
+        print(f"  Provider: {stats.get('provider_type', 'unknown')}")
+
+        # Show models based on what's available
+        if stats.get('chat_model'):
+            print(f"  Chat Model: {stats['chat_model']}")
+        if stats.get('embedding_model'):
+            print(f"  Embedding Model: {stats['embedding_model']}")
+
+        # Show router status
+        if stats.get('router_enabled'):
+            router_model = stats.get('router_model', 'unknown')
+            print(f"  🎯 Router: Enabled ({router_model})")
+        else:
+            print(f"  🎯 Router: Disabled")
+
         print("=" * 70)
 
         # Show vector store stats
-        vs_stats = stats['vector_store']
-        print(f"\n  📚 Knowledge Base Status: {vs_stats['status']}")
-        if vs_stats['status'] == 'ready':
-            print(f"  📊 Documents in store: {vs_stats['count']} chunks")
+        doc_count = stats.get('document_count', 0)
+        collection = stats.get('vector_store_collection', 'unknown')
+
+        print(f"\n  📚 Knowledge Base: {collection}")
+        if doc_count > 0:
+            print(f"  📊 Documents in store: {doc_count} chunks")
         else:
             print("  ⚠️  No documents loaded. Run ingestion first!")
+
         print("\n" + "=" * 70)
         print("  Type 'exit' or 'quit' to end the conversation")
         print("  Type 'stats' to see current statistics")
@@ -71,7 +87,7 @@ class CLI:
             print(f"\n❌ Failed to connect to API at {settings.api_base_url}")
             print(f"   Error: {e}")
             print(f"\n   Make sure the FastAPI server is running:")
-            print(f"   uvicorn main:app --reload\n")
+            print(f"   uvicorn app.api.main:app --reload\n")
             return
 
         while True:
@@ -102,14 +118,29 @@ class CLI:
                 print("🔄 Processing", end="", flush=True)
 
                 try:
-                    response = await self.api_client.chat(
+                    result = await self.api_client.chat(
                         message=user_input,
                         user_id=self.user_id,
                         session_id=self.session_id
                     )
+
                     # Clear the "Processing..." line
                     print("\r🤖 Assistant: " + " " * 20 + "\r🤖 Assistant: ", end="", flush=True)
-                    print(response)
+
+                    # Handle dict response (with routing info) or string response (legacy)
+                    if isinstance(result, dict):
+                        response_text = result.get('response', str(result))
+
+                        # Show routing info if present and in debug mode
+                        if settings.debug and result.get('routing_info'):
+                            routing = result['routing_info']
+                            print(f"[🎯 {routing['agent']} | confidence: {routing['confidence']:.2f}]")
+
+                        print(response_text)
+                    else:
+                        # Legacy string response
+                        print(result)
+
                 except httpx.TimeoutException:
                     print("\n⏱️  Request timed out. The agent might be processing a complex query.")
                     print("   Try increasing the timeout in settings or simplifying your question.")
@@ -134,28 +165,37 @@ class CLI:
             print("\n" + "=" * 70)
             print("  📊 Application Statistics")
             print("=" * 70)
-            print(f"  App: {stats['app_name']} v{stats['version']}")
-            print(f"  Environment: {stats['environment']}")
+            print(f"  Version: {settings.version}")
+            print(f"  Environment: {settings.environment}")
+
+            print(f"\n  Provider Configuration:")
+            print(f"    Type: {stats.get('provider_type', 'unknown')}")
+            if stats.get('chat_model'):
+                print(f"    Chat Model: {stats['chat_model']}")
+            if stats.get('embedding_model'):
+                print(f"    Embedding Model: {stats['embedding_model']}")
+
+            print(f"\n  Router:")
+            if stats.get('router_enabled'):
+                print(f"    Status: ✅ Enabled")
+                print(f"    Model: {stats.get('router_model', 'unknown')}")
+            else:
+                print(f"    Status: ❌ Disabled")
+
             print(f"\n  Vector Store:")
-            vs = stats['vector_store']
-            print(f"    Status: {vs['status']}")
-            print(f"    Collection: {vs['collection']}")
-            if vs['status'] == 'ready':
-                print(f"    Chunks: {vs['count']}")
+            print(f"    Collection: {stats.get('vector_store_collection', 'unknown')}")
+            doc_count = stats.get('document_count', 0)
+            if doc_count > 0:
+                print(f"    Document Chunks: {doc_count}")
+            else:
+                print(f"    Document Chunks: 0 (empty)")
 
-            # Show available providers
-            providers = stats.get('providers', {})
-            print(f"\n  Available Providers:")
-            print(f"    Local (Ollama): {'✅' if providers.get('local') else '❌'}")
-            print(f"    Anthropic (Claude): {'✅' if providers.get('anthropic') else '❌'}")
-            print(f"    Google (Gemini): {'✅' if providers.get('google') else '❌'}")
-
-            print(f"\n  Models:")
-            print(f"    Embedding: {stats['models']['embedding']}")
-            print(f"    Chat: {stats['models']['chat']}")
             print("=" * 70)
         except httpx.HTTPError as e:
             print(f"\n❌ Failed to get stats: {e}")
+        except Exception as e:
+            logger.error(f"Error printing stats: {e}")
+            print(f"\n❌ Error displaying stats: {e}")
 
 
 async def main():
@@ -172,6 +212,8 @@ async def main():
     except Exception as e:
         logger.error(f"Fatal error: {e}")
         print(f"\n❌ Fatal error: {e}\n")
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
     finally:
         await api_client.close()
