@@ -96,14 +96,25 @@ class RouterService:
 
     def _build_routing_prompt(self, message: str) -> str:
         """Build prompt for routing classification."""
-        return f"""You are a request classifier. Analyze the user's message and classify it into ONE of these categories:
+        return f"""You are a request classifier. Analyze the user's message and classify it.
 
-1. code_validation - User wants to check syntax or validate code
-2. rag_query - User is asking questions that need information from documents/knowledge base
-3. code_generation - User wants you to write/create new code
-4. code_analysis - User wants explanation or review of existing code
+Categories:
+1. code_validation - Check syntax or validate code
+2. rag_query - Questions needing information from documents/knowledge base
+3. code_generation - Write/create new code
+4. code_analysis - Explain or review existing code
 5. complex_reasoning - Multi-step problems requiring deep thinking or algorithms
 6. general_chat - Casual conversation, greetings, or simple questions
+
+For SIMPLE requests, use ONE category as primary_agent with empty parallel_agents.
+For COMPLEX requests needing multiple perspectives, add relevant categories to parallel_agents.
+
+Examples:
+- "validate this code" → {{"primary_agent": "code_validation", "parallel_agents": [], "confidence": 0.95, "reasoning": "simple validation request"}}
+- "validate and explain this code" → {{"primary_agent": "code_validation", "parallel_agents": ["code_analysis"], "confidence": 0.9, "reasoning": "needs validation and explanation"}}
+- "is this code correct and how can I improve it?" → {{"primary_agent": "code_validation", "parallel_agents": ["code_analysis"], "confidence": 0.9, "reasoning": "validation plus improvement suggestions"}}
+- "write a function" → {{"primary_agent": "code_generation", "parallel_agents": [], "confidence": 0.95, "reasoning": "straightforward code generation"}}
+- "search docs for X" → {{"primary_agent": "rag_query", "parallel_agents": [], "confidence": 0.95, "reasoning": "knowledge base query"}}
 
 User message: {message}
 

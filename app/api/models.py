@@ -11,7 +11,7 @@ class ChatRequest(BaseModel):
         ...,
         description="User's message",
         min_length=1,
-        max_length=8000
+        max_length=16000  # Increased to match sanitizer config
     )
     user_id: str = Field(
         default="local_user",

@@ -9,7 +9,7 @@ from dataclasses import dataclass
 @dataclass
 class SanitizationConfig:
     """Configuration for input sanitization."""
-    max_message_length: int = 8000
+    max_message_length: int = 16000  # Increased for complex code questions
     max_user_id_length: int = 100
     max_session_id_length: int = 100
     allow_unicode: bool = True
@@ -48,8 +48,8 @@ class InputSanitizer:
         r'xp_cmdshell',
         r'INTO\s+(OUTFILE|DUMPFILE)',
         r'[\|&;]\s*(rm|mv|cp|cat|chmod|wget|curl|nc|bash|sh|python|perl|ruby)',
-        r'\$\(\s*.*\s*\)',
-        r'`.*`',
+        # Removed overly aggressive backtick pattern - code examples need backticks!
+        r'\$\(\s*(rm|mv|wget|curl|bash|sh)\s*\)',  # Only flag command substitution with dangerous commands
         r'\.\.[/\\]',
         r'[/\\]etc[/\\]passwd',
         r'[/\\]windows[/\\]system32',
@@ -228,12 +228,25 @@ class InputSanitizer:
             ('CAST', 'AS'),
         ]
 
+        # Check if message appears to be code (has code indicators)
+        code_context_indicators = [
+            'function', 'class', 'const', 'let', 'var', 'def', 'public', 'private',
+            'import', 'require', 'return', 'if', 'else', 'for', 'while',
+            '=>', 'async', 'await', '.map(', '.filter(', '.reduce(',
+            'console.log', 'print(', 'System.out', 'fmt.Print'
+        ]
+        is_code_context = any(indicator in message for indicator in code_context_indicators)
+
         for indicator1, indicator2 in sql_indicators:
             if indicator1.upper() in upper_message and (not indicator2 or indicator2.upper() in upper_message):
                 if indicator1 == "'" and message.count("'") >= 3:
-                    return True, "Potential SQL injection: Multiple quotes with suspicious keywords"
+                    # Allow quotes in code context - they're for strings, not SQL injection
+                    if not is_code_context:
+                        return True, "Potential SQL injection: Multiple quotes with suspicious keywords"
                 elif indicator1 == '--' and message.strip().endswith('--'):
-                    return True, "Potential SQL injection: SQL comment syntax"
+                    # Allow if in code comment context
+                    if not is_code_context and not any(x in message for x in ['//', '/*', '#']):
+                        return True, "Potential SQL injection: SQL comment syntax"
                 elif indicator1 in ['UNION', 'CAST'] and indicator2 in upper_message:
                     return True, f"Potential SQL injection: {indicator1} {indicator2} pattern"
                 elif indicator1 == 'information_schema':
@@ -248,8 +261,15 @@ class InputSanitizer:
                     if re.search(rf'{re.escape(char)}\s*{word}\b', message, re.IGNORECASE):
                         return True, f"Potential command injection: {char} {word}"
 
+        # More nuanced path traversal detection - allow in code/example context
         if '../' in message or '..\\' in message:
-            if not any(keyword in message.lower() for keyword in ['example', 'code', 'path', 'directory']):
+            # Check if it's in a code or example context
+            code_indicators = [
+                'example', 'code', 'path', 'directory', 'import', 'require',
+                'class', 'function', 'const', 'let', 'var', 'def', 'public',
+                'private', 'javascript', 'python', 'node', 'file', 'module'
+            ]
+            if not any(indicator in message.lower() for indicator in code_indicators):
                 return True, "Potential path traversal attempt"
 
         return False, None

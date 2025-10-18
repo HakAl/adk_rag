@@ -11,10 +11,11 @@ interface ChatInputProps {
 }
 
 // Client-side validation constants (should match backend)
-const MAX_MESSAGE_LENGTH = 8000;
+const MAX_MESSAGE_LENGTH = 16000;  // Increased to match backend
 const MIN_MESSAGE_LENGTH = 1;
 
 // Simple client-side prompt injection detection patterns
+// Removed overly aggressive patterns to allow code examples
 const SUSPICIOUS_PATTERNS = [
   /ignore\s+(previous|prior|above|all)\s+(instructions?|prompts?|commands?)/i,
   /disregard\s+(previous|prior|above|all)/i,
@@ -27,6 +28,19 @@ const SUSPICIOUS_PATTERNS = [
   /\[\/INST\]/i,
   /override\s+your\s+(instructions?|programming)/i,
 ];
+
+/**
+ * Check if message appears to be code/technical content
+ */
+const isCodeContext = (message: string): boolean => {
+  const codeIndicators = [
+    'function', 'class', 'const', 'let', 'var', 'def', 'public', 'private',
+    'import', 'require', 'return', 'if', 'else', 'for', 'while',
+    '=>', 'async', 'await', '.map(', '.filter(', '.reduce(',
+    'console.log', 'print(', 'System.out', 'fmt.Print'
+  ];
+  return codeIndicators.some(indicator => message.includes(indicator));
+};
 
 /**
  * Validate message on client side for immediate feedback
@@ -50,13 +64,15 @@ const validateMessage = (message: string): { valid: boolean; error?: string } =>
     return { valid: false, error: 'Message contains invalid characters' };
   }
 
-  // Check for suspicious patterns (optional - can be disabled for UX)
-  for (const pattern of SUSPICIOUS_PATTERNS) {
-    if (pattern.test(trimmed)) {
-      return {
-        valid: false,
-        error: 'Message contains suspicious content. Please rephrase your query.'
-      };
+  // Check for suspicious patterns - skip if code context detected
+  if (!isCodeContext(trimmed)) {
+    for (const pattern of SUSPICIOUS_PATTERNS) {
+      if (pattern.test(trimmed)) {
+        return {
+          valid: false,
+          error: 'Message contains suspicious content. Please rephrase your query.'
+        };
+      }
     }
   }
 
