@@ -1,5 +1,5 @@
 """
-Command-line interface for the RAG Agent.
+Command-line interface for the RAG Agent with input validation.
 """
 import asyncio
 import sys
@@ -7,14 +7,54 @@ from typing import Optional
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import InMemoryHistory
+from prompt_toolkit.validation import Validator, ValidationError as PTValidationError
 import httpx
 
 from config import settings, logger
 from app.api.client import APIClient
 
 
+class MessageValidator(Validator):
+    """Validator for CLI input using prompt_toolkit."""
+
+    def __init__(self, max_length: int = 8000):
+        """
+        Initialize validator.
+
+        Args:
+            max_length: Maximum message length
+        """
+        self.max_length = max_length
+
+    def validate(self, document):
+        """
+        Validate the input document.
+
+        Args:
+            document: prompt_toolkit document
+
+        Raises:
+            PTValidationError: If validation fails
+        """
+        text = document.text.strip()
+
+        # Check length
+        if len(text) > self.max_length:
+            raise PTValidationError(
+                message=f'Message too long ({len(text)}/{self.max_length} chars)',
+                cursor_position=len(document.text)
+            )
+
+        # Check for null bytes
+        if '\x00' in text:
+            raise PTValidationError(
+                message='Message contains invalid null bytes',
+                cursor_position=text.index('\x00')
+            )
+
+
 class CLI:
-    """Interactive command-line interface."""
+    """Interactive command-line interface with input validation."""
 
     def __init__(self, api_client: APIClient):
         """
@@ -26,7 +66,11 @@ class CLI:
         self.api_client = api_client
         self.user_id = "cli_user"
         self.session_id: Optional[str] = None
-        self.prompt_session = PromptSession(history=InMemoryHistory())
+        self.prompt_session = PromptSession(
+            history=InMemoryHistory(),
+            validator=MessageValidator(),
+            validate_while_typing=False  # Only validate on submit
+        )
 
     def print_banner(self, stats: dict):
         """Print welcome banner."""
@@ -66,7 +110,50 @@ class CLI:
         print("  Type 'exit' or 'quit' to end the conversation")
         print("  Type 'stats' to see current statistics")
         print("  Type 'new' to start a new conversation")
+        print("  Type 'help' to see available commands")
         print("=" * 70 + "\n")
+
+    def print_help(self):
+        """Print help information."""
+        print("\n" + "=" * 70)
+        print("  Available Commands")
+        print("=" * 70)
+        print("  exit, quit, q     - Exit the application")
+        print("  stats             - Show application statistics")
+        print("  new               - Start a new conversation")
+        print("  help              - Show this help message")
+        print("\n  Input Limits:")
+        print("  - Maximum message length: 8000 characters")
+        print("  - Messages are validated for security")
+        print("=" * 70 + "\n")
+
+    def validate_user_input(self, user_input: str) -> tuple[bool, Optional[str]]:
+        """
+        Validate user input for potential issues.
+
+        Args:
+            user_input: Raw user input
+
+        Returns:
+            Tuple of (is_valid, error_message)
+        """
+        # Import here to avoid circular dependency
+        try:
+            from app.utils.input_sanitizer import get_sanitizer, InputSanitizationError
+
+            try:
+                # This will raise InputSanitizationError if invalid
+                get_sanitizer().sanitize_message(user_input)
+                return True, None
+            except InputSanitizationError as e:
+                return False, str(e)
+        except ImportError:
+            # If sanitizer not available, do basic validation
+            if len(user_input) > 8000:
+                return False, f"Message too long ({len(user_input)}/8000 characters)"
+            if '\x00' in user_input:
+                return False, "Message contains invalid characters"
+            return True, None
 
     async def run(self):
         """Run the interactive CLI."""
@@ -92,7 +179,7 @@ class CLI:
 
         while True:
             try:
-                # Get user input with prompt_toolkit
+                # Get user input with prompt_toolkit (includes basic validation)
                 user_input = await self.prompt_session.prompt_async("\n💬 You: ")
                 user_input = user_input.strip()
 
@@ -104,6 +191,10 @@ class CLI:
                     print("\n👋 Goodbye!\n")
                     break
 
+                if user_input.lower() == 'help':
+                    self.print_help()
+                    continue
+
                 if user_input.lower() == 'stats':
                     await self._print_stats()
                     continue
@@ -111,6 +202,13 @@ class CLI:
                 if user_input.lower() == 'new':
                     self.session_id = await self.api_client.create_session(self.user_id)
                     print(f"\n✅ New conversation started (Session: {self.session_id[:8]}...)")
+                    continue
+
+                # Additional validation beyond prompt_toolkit
+                is_valid, error_msg = self.validate_user_input(user_input)
+                if not is_valid:
+                    print(f"\n⚠️  Input Validation Error: {error_msg}")
+                    print("   Please rephrase your message and try again.\n")
                     continue
 
                 # Get response from agent via API
@@ -141,6 +239,33 @@ class CLI:
                         # Legacy string response
                         print(result)
 
+                except httpx.HTTPStatusError as e:
+                    # Handle HTTP errors from API (including validation errors)
+                    print(f"\n\n❌ Server Error: ", end="")
+
+                    if e.response.status_code == 400:
+                        # Bad request - likely validation error
+                        try:
+                            error_detail = e.response.json()
+                            if 'error' in error_detail:
+                                print(error_detail['error'])
+                            elif 'detail' in error_detail:
+                                print(error_detail['detail'])
+                            else:
+                                print("Invalid input")
+                        except:
+                            print("Invalid input")
+                    elif e.response.status_code == 422:
+                        # Unprocessable entity - Pydantic validation error
+                        print("Input validation failed. Please check your message.")
+                    elif e.response.status_code == 429:
+                        # Rate limited
+                        print("Rate limit exceeded. Please wait a moment and try again.")
+                    else:
+                        print(f"HTTP {e.response.status_code}: {e}")
+
+                    logger.error(f"HTTP error: {e}")
+
                 except httpx.TimeoutException:
                     print("\n⏱️  Request timed out. The agent might be processing a complex query.")
                     print("   Try increasing the timeout in settings or simplifying your question.")
@@ -155,7 +280,7 @@ class CLI:
                 logger.error(f"API error: {e}")
                 print(f"\n❌ API Error: {e}")
             except Exception as e:
-                logger.error(f"Error in CLI: {e}")
+                logger.error(f"Error in CLI: {e}", exc_info=True)
                 print(f"\n❌ Error: {e}")
 
     async def _print_stats(self):
@@ -189,6 +314,11 @@ class CLI:
                 print(f"    Document Chunks: {doc_count}")
             else:
                 print(f"    Document Chunks: 0 (empty)")
+
+            print(f"\n  Security:")
+            print(f"    Input Validation: ✅ Enabled")
+            print(f"    Max Message Length: 8000 characters")
+            print(f"    Rate Limiting: ✅ Enabled (server-side)")
 
             print("=" * 70)
         except httpx.HTTPError as e:

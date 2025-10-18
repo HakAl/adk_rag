@@ -1,15 +1,65 @@
 """
-API request/response models.
+API request/response models with input validation.
 """
 from typing import Optional, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class ChatRequest(BaseModel):
-    """Chat request model."""
-    message: str = Field(..., description="User's message")
-    user_id: str = Field(default="local_user", description="User identifier")
-    session_id: str = Field(..., description="Session identifier")
+    """Chat request model with validation."""
+    message: str = Field(
+        ...,
+        description="User's message",
+        min_length=1,
+        max_length=8000
+    )
+    user_id: str = Field(
+        default="local_user",
+        description="User identifier",
+        min_length=1,
+        max_length=100,
+        pattern=r'^[a-zA-Z0-9_\-\.]+$'
+    )
+    session_id: str = Field(
+        ...,
+        description="Session identifier",
+        min_length=1,
+        max_length=100,
+        pattern=r'^[a-zA-Z0-9\-]+$'
+    )
+
+    @field_validator('message')
+    @classmethod
+    def validate_message(cls, v: str) -> str:
+        """Validate and sanitize message."""
+        from app.utils.input_sanitizer import get_sanitizer, InputSanitizationError
+
+        try:
+            return get_sanitizer().sanitize_message(v)
+        except InputSanitizationError as e:
+            raise ValueError(str(e))
+
+    @field_validator('user_id')
+    @classmethod
+    def validate_user_id(cls, v: str) -> str:
+        """Validate and sanitize user ID."""
+        from app.utils.input_sanitizer import get_sanitizer, InputSanitizationError
+
+        try:
+            return get_sanitizer().sanitize_user_id(v)
+        except InputSanitizationError as e:
+            raise ValueError(str(e))
+
+    @field_validator('session_id')
+    @classmethod
+    def validate_session_id(cls, v: str) -> str:
+        """Validate and sanitize session ID."""
+        from app.utils.input_sanitizer import get_sanitizer, InputSanitizationError
+
+        try:
+            return get_sanitizer().sanitize_session_id(v)
+        except InputSanitizationError as e:
+            raise ValueError(str(e))
 
 
 class ChatResponse(BaseModel):
@@ -23,8 +73,25 @@ class ChatResponse(BaseModel):
 
 
 class SessionCreateRequest(BaseModel):
-    """Session creation request."""
-    user_id: str = Field(default="local_user", description="User identifier")
+    """Session creation request with validation."""
+    user_id: str = Field(
+        default="local_user",
+        description="User identifier",
+        min_length=1,
+        max_length=100,
+        pattern=r'^[a-zA-Z0-9_\-\.]+$'
+    )
+
+    @field_validator('user_id')
+    @classmethod
+    def validate_user_id(cls, v: str) -> str:
+        """Validate and sanitize user ID."""
+        from app.utils.input_sanitizer import get_sanitizer, InputSanitizationError
+
+        try:
+            return get_sanitizer().sanitize_user_id(v)
+        except InputSanitizationError as e:
+            raise ValueError(str(e))
 
 
 class SessionCreateResponse(BaseModel):

@@ -22,7 +22,6 @@ from app.api.models import (
 )
 from app.utils.input_sanitizer import InputSanitizationError
 
-
 # Global app instance
 rag_app: Optional[RAGAgentApp] = None
 
@@ -159,8 +158,8 @@ async def get_stats(app: RAGAgentApp = Depends(get_app)):
     dependencies=[Depends(rate_limit_dependency)]
 )
 async def create_session(
-    request: SessionCreateRequest,
-    app: RAGAgentApp = Depends(get_app)
+        request: SessionCreateRequest,
+        app: RAGAgentApp = Depends(get_app)
 ):
     """Create a new chat session."""
     try:
@@ -180,8 +179,8 @@ async def create_session(
     dependencies=[Depends(rate_limit_dependency)]
 )
 async def chat(
-    request: ChatRequest,
-    app: RAGAgentApp = Depends(get_app)
+        request: ChatRequest,
+        app: RAGAgentApp = Depends(get_app)
 ):
     """
     Send a chat message and get response.
@@ -231,8 +230,8 @@ async def chat(
     dependencies=[Depends(rate_limit_dependency)]
 )
 async def chat_extended(
-    request: ChatRequest,
-    app: RAGAgentApp = Depends(get_app)
+        request: ChatRequest,
+        app: RAGAgentApp = Depends(get_app)
 ):
     """
     Send a chat message and get response with routing metadata.

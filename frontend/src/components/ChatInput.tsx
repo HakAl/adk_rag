@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Textarea } from './ui/textarea';
 import { Button } from './ui/button';
-import { Send, Loader2 } from 'lucide-react';
+import { Send, Loader2, AlertCircle } from 'lucide-react';
 
 interface ChatInputProps {
   onSubmit: (message: string) => void;
@@ -10,8 +10,63 @@ interface ChatInputProps {
   error?: string | null;
 }
 
+// Client-side validation constants (should match backend)
+const MAX_MESSAGE_LENGTH = 8000;
+const MIN_MESSAGE_LENGTH = 1;
+
+// Simple client-side prompt injection detection patterns
+const SUSPICIOUS_PATTERNS = [
+  /ignore\s+(previous|prior|above|all)\s+(instructions?|prompts?|commands?)/i,
+  /disregard\s+(previous|prior|above|all)/i,
+  /forget\s+(everything|all|previous|instructions?)/i,
+  /you\s+are\s+now\s+(a|an)/i,
+  /system\s*:\s*/i,
+  /<\|im_start\|>/i,
+  /<\|im_end\|>/i,
+  /\[INST\]/i,
+  /\[\/INST\]/i,
+  /override\s+your\s+(instructions?|programming)/i,
+];
+
+/**
+ * Validate message on client side for immediate feedback
+ */
+const validateMessage = (message: string): { valid: boolean; error?: string } => {
+  const trimmed = message.trim();
+
+  if (trimmed.length < MIN_MESSAGE_LENGTH) {
+    return { valid: false, error: 'Message cannot be empty' };
+  }
+
+  if (trimmed.length > MAX_MESSAGE_LENGTH) {
+    return {
+      valid: false,
+      error: `Message is too long (${trimmed.length}/${MAX_MESSAGE_LENGTH} characters)`
+    };
+  }
+
+  // Check for null bytes
+  if (trimmed.includes('\x00')) {
+    return { valid: false, error: 'Message contains invalid characters' };
+  }
+
+  // Check for suspicious patterns (optional - can be disabled for UX)
+  for (const pattern of SUSPICIOUS_PATTERNS) {
+    if (pattern.test(trimmed)) {
+      return {
+        valid: false,
+        error: 'Message contains suspicious content. Please rephrase your query.'
+      };
+    }
+  }
+
+  return { valid: true };
+};
+
 export const ChatInput = ({ onSubmit, disabled, isLoading, error }: ChatInputProps) => {
   const [input, setInput] = useState('');
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const [charCount, setCharCount] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const errorId = 'chat-input-error';
 
@@ -39,10 +94,23 @@ export const ChatInput = ({ onSubmit, disabled, isLoading, error }: ChatInputPro
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || disabled) return;
 
+    // Clear previous validation error
+    setValidationError(null);
+
+    if (!input.trim() || disabled || isLoading) return;
+
+    // Validate input before submitting
+    const validation = validateMessage(input);
+    if (!validation.valid) {
+      setValidationError(validation.error || 'Invalid input');
+      return;
+    }
+
+    // Submit and clear
     onSubmit(input.trim());
     setInput('');
+    setCharCount(0);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -53,28 +121,63 @@ export const ChatInput = ({ onSubmit, disabled, isLoading, error }: ChatInputPro
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInput(e.target.value);
+    const value = e.target.value;
+    setInput(value);
+    setCharCount(value.trim().length);
+
+    // Clear validation error when user types
+    if (validationError) {
+      setValidationError(null);
+    }
   };
+
+  // Determine if we should show a warning (approaching limit)
+  const isApproachingLimit = charCount > MAX_MESSAGE_LENGTH * 0.9;
+  const isOverLimit = charCount > MAX_MESSAGE_LENGTH;
+
+  // Combined error message (API error or validation error)
+  const displayError = error || validationError;
 
   return (
     <div className="flex-shrink-0">
       <form onSubmit={handleSubmit} className="flex gap-2 sm:gap-3 items-end">
-        <Textarea
-          ref={textareaRef}
-          value={input}
-          onChange={handleChange}
-          onKeyDown={handleKeyDown}
-          placeholder="Type your message... (Shift+Enter for new line)"
-          disabled={disabled || isLoading}
-          className="flex-1 min-h-[60px] sm:min-h-[80px] max-h-[150px] sm:max-h-[200px] resize-none transition-all focus:scale-[1.01] focus:mr-1 glass-input overflow-y-auto text-sm sm:text-base"
-          rows={1}
-          aria-label="Chat message input"
-          aria-describedby={error ? errorId : undefined}
-          aria-invalid={error ? 'true' : 'false'}
-        />
+        <div className="flex-1 relative">
+          <Textarea
+            ref={textareaRef}
+            value={input}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            placeholder="Type your message... (Shift+Enter for new line)"
+            disabled={disabled || isLoading}
+            className={`flex-1 min-h-[60px] sm:min-h-[80px] max-h-[150px] sm:max-h-[200px] resize-none transition-all focus:scale-[1.01] focus:mr-1 glass-input overflow-y-auto text-sm sm:text-base ${
+              isOverLimit ? 'border-red-500 focus:border-red-500' : ''
+            }`}
+            rows={1}
+            aria-label="Chat message input"
+            aria-describedby={displayError ? errorId : undefined}
+            aria-invalid={displayError ? 'true' : 'false'}
+          />
+
+          {/* Character counter */}
+          {charCount > 0 && (
+            <div
+              className={`absolute bottom-2 right-2 text-xs transition-colors ${
+                isOverLimit
+                  ? 'text-red-500 font-semibold'
+                  : isApproachingLimit
+                  ? 'text-yellow-500'
+                  : 'text-gray-400'
+              }`}
+              aria-live="polite"
+            >
+              {charCount}/{MAX_MESSAGE_LENGTH}
+            </div>
+          )}
+        </div>
+
         <Button
           type="submit"
-          disabled={disabled || isLoading || !input.trim()}
+          disabled={disabled || isLoading || !input.trim() || isOverLimit}
           size="icon"
           className="h-11 w-11 sm:h-10 sm:w-10 transition-transform hover:scale-110 active:scale-95 glass-button flex-shrink-0"
           aria-label={isLoading ? 'Sending message' : 'Send message'}
@@ -87,14 +190,23 @@ export const ChatInput = ({ onSubmit, disabled, isLoading, error }: ChatInputPro
         </Button>
       </form>
 
-      {error && (
-        <p
+      {/* Error display */}
+      {displayError && (
+        <div
           id={errorId}
-          className="text-red-400 text-xs sm:text-sm mt-2 animate-fade-in"
+          className="flex items-center gap-2 text-red-400 text-xs sm:text-sm mt-2 animate-fade-in"
           role="alert"
           aria-live="polite"
         >
-          Error: {error}
+          <AlertCircle className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+          <span>{displayError}</span>
+        </div>
+      )}
+
+      {/* Warning for approaching limit */}
+      {!displayError && isApproachingLimit && !isOverLimit && (
+        <p className="text-yellow-500 text-xs sm:text-sm mt-2 animate-fade-in">
+          ⚠️ Approaching character limit
         </p>
       )}
     </div>
