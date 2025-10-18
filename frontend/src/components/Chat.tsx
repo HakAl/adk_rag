@@ -152,8 +152,8 @@ export const Chat = () => {
       <div className="flex h-screen items-center justify-center">
         <Card className="glass-card">
           <CardContent className="p-6">
-            <div className="flex items-center justify-center gap-2">
-              <Loader2 className="h-4 w-4 animate-spin text-primary" />
+            <div className="flex items-center justify-center gap-2" role="status" aria-live="polite">
+              <Loader2 className="h-4 w-4 animate-spin text-primary" aria-hidden="true" />
               <p className="text-foreground">Initializing chat session...</p>
             </div>
           </CardContent>
@@ -167,7 +167,9 @@ export const Chat = () => {
       <div className="flex h-screen items-center justify-center">
         <Card className="glass-card border-red-500/50 bg-red-950/20">
           <CardContent className="p-6">
-            <p className="text-red-400">Failed to create session: {sessionError.message}</p>
+            <p className="text-red-400" role="alert">
+              Failed to create session: {sessionError.message}
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -186,7 +188,7 @@ export const Chat = () => {
         onClose={() => setSidebarOpen(false)}
       />
 
-      <div className="flex-1 flex flex-col min-w-0 h-full">
+      <main className="flex-1 flex flex-col min-w-0 h-full" id="main-content">
         <Card className="h-full flex flex-col glass-card gradient-border">
           <CardHeader className="flex-shrink-0 flex flex-row items-center gap-3">
             <Button
@@ -194,14 +196,24 @@ export const Chat = () => {
               size="icon"
               onClick={() => setSidebarOpen(true)}
               className="lg:hidden"
+              aria-label="Open chat history sidebar"
+              aria-expanded={sidebarOpen}
+              aria-controls="chat-sidebar"
             >
-              <Menu className="h-5 w-5" />
+              <Menu className="h-5 w-5" aria-hidden="true" />
             </Button>
             <CardTitle className="gradient-text">Chat</CardTitle>
           </CardHeader>
 
           <CardContent className="flex-1 flex flex-col min-h-0 pb-4">
-            <ScrollArea ref={scrollRef} className="flex-1 mb-4 pr-4">
+            <ScrollArea
+              ref={scrollRef}
+              className="flex-1 mb-4 pr-4"
+              role="log"
+              aria-live="polite"
+              aria-atomic="false"
+              aria-label="Chat conversation"
+            >
               <div className="space-y-4">
                 {messages.length === 0 ? (
                   <p className="text-muted-foreground text-center py-8">
@@ -212,12 +224,17 @@ export const Chat = () => {
                 )}
 
                 {mutation.isPending && (
-                  <div className="flex justify-start gap-2 animate-fade-in">
+                  <div
+                    className="flex justify-start gap-2 animate-fade-in"
+                    role="status"
+                    aria-live="polite"
+                    aria-label="Assistant is thinking"
+                  >
                     <div className="glass-avatar bg-gradient-to-br from-primary to-accent text-primary-foreground rounded-full p-2 h-8 w-8 flex items-center justify-center flex-shrink-0">
-                      <Bot className="h-4 w-4" />
+                      <Bot className="h-4 w-4" aria-hidden="true" />
                     </div>
                     <div className="glass-message bg-secondary/30 text-secondary-foreground rounded-lg px-4 py-2 flex items-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                       <span className="animate-pulse">Thinking...</span>
                     </div>
                   </div>
@@ -233,7 +250,7 @@ export const Chat = () => {
             />
           </CardContent>
         </Card>
-      </div>
+      </main>
     </div>
   );
 };

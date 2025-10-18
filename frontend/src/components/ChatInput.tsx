@@ -13,6 +13,7 @@ interface ChatInputProps {
 export const ChatInput = ({ onSubmit, disabled, isLoading, error }: ChatInputProps) => {
   const [input, setInput] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const errorId = 'chat-input-error';
 
   const adjustHeight = () => {
     const textarea = textareaRef.current;
@@ -65,23 +66,34 @@ export const ChatInput = ({ onSubmit, disabled, isLoading, error }: ChatInputPro
           disabled={disabled || isLoading}
           className="flex-1 min-h-[80px] max-h-[200px] resize-none transition-all focus:scale-[1.01] focus:mr-1 glass-input overflow-y-auto"
           rows={1}
+          aria-label="Chat message input"
+          aria-describedby={error ? errorId : undefined}
+          aria-invalid={error ? 'true' : 'false'}
         />
         <Button
           type="submit"
-          disabled={disabled || isLoading}
+          disabled={disabled || isLoading || !input.trim()}
           size="icon"
           className="h-10 w-10 transition-transform hover:scale-110 active:scale-95 glass-button"
+          aria-label={isLoading ? 'Sending message' : 'Send message'}
         >
           {isLoading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
           ) : (
-            <Send className="h-4 w-4" />
+            <Send className="h-4 w-4" aria-hidden="true" />
           )}
         </Button>
       </form>
 
       {error && (
-        <p className="text-red-400 text-sm mt-2 animate-fade-in">Error: {error}</p>
+        <p
+          id={errorId}
+          className="text-red-400 text-sm mt-2 animate-fade-in"
+          role="alert"
+          aria-live="polite"
+        >
+          Error: {error}
+        </p>
       )}
     </div>
   );

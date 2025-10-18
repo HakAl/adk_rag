@@ -39,26 +39,42 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <div className="dark h-screen bg-background flex flex-col">
+        {/* Skip to main content link for keyboard navigation */}
+        <a
+          href="#main-content"
+          className="skip-link"
+        >
+          Skip to main content
+        </a>
+
         {/* Header */}
-        <div className="flex-shrink-0 border-b border-border">
+        <header className="flex-shrink-0 border-b border-border">
           <div className="container mx-auto px-4 py-4">
             <div className="flex items-center justify-between">
               <h1 className="text-3xl font-bold text-primary">VIBE Agent</h1>
 
               {health && (
-                <div className="flex items-center gap-4 text-sm">
+                <div className="flex items-center gap-4 text-sm" role="status" aria-live="polite">
                   <span className="text-muted-foreground">Status:</span>
-                  <span className="text-green-500 font-semibold">{health.status}</span>
+                  <span className="text-green-500 font-semibold" aria-label="System status">
+                    {health.status}
+                  </span>
                   <span className="text-muted-foreground">Version:</span>
-                  <span className="text-muted-foreground">{process.env.REACT_APP_VERSION || '0.1.0'}</span>
+                  <span className="text-muted-foreground" aria-label="Application version">
+                    {process.env.REACT_APP_VERSION || '0.1.0'}
+                  </span>
                 </div>
               )}
             </div>
 
-            {loading && <p className="text-muted-foreground mt-2">Loading...</p>}
+            {loading && (
+              <p className="text-muted-foreground mt-2" role="status" aria-live="polite">
+                Loading...
+              </p>
+            )}
 
             {error && (
-              <Card className="border-red-500 bg-red-950/20 mt-4">
+              <Card className="border-red-500 bg-red-950/20 mt-4" role="alert">
                 <CardHeader>
                   <CardTitle className="text-red-500">Error</CardTitle>
                 </CardHeader>
@@ -68,7 +84,7 @@ function App() {
               </Card>
             )}
           </div>
-        </div>
+        </header>
 
         {/* Chat Area - Full width, remaining height */}
         {health && (

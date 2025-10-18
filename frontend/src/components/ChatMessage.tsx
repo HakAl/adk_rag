@@ -32,35 +32,52 @@ export const ChatMessage = ({ message }: ChatMessageProps) => {
       {/* User Question */}
       <div className="flex justify-end gap-2">
         <div className="flex flex-col items-end gap-1 max-w-[80%]">
-          <div className="glass-message bg-gradient-to-br from-sky-400/90 to-cyan-500/90 text-white rounded-lg px-4 py-2 w-full whitespace-pre-wrap transition-all hover:scale-[1.02] hover:shadow-lg">
+          <div
+            className="glass-message bg-gradient-to-br from-sky-400/90 to-cyan-500/90 text-white rounded-lg px-4 py-2 w-full whitespace-pre-wrap transition-all hover:scale-[1.02] hover:shadow-lg"
+            role="article"
+            aria-label="User message"
+          >
             {message.question}
           </div>
           <span className="text-xs text-muted-foreground px-1">
-            {formatTimestamp(message.timestamp)}
+            <time dateTime={new Date(message.timestamp).toISOString()}>
+              {formatTimestamp(message.timestamp)}
+            </time>
           </span>
         </div>
-        <div className="glass-avatar bg-gradient-to-br from-sky-400 to-cyan-500 text-white rounded-full p-2 h-8 w-8 flex items-center justify-center flex-shrink-0">
+        <div
+          className="glass-avatar bg-gradient-to-br from-sky-400 to-cyan-500 text-white rounded-full p-2 h-8 w-8 flex items-center justify-center flex-shrink-0"
+          aria-hidden="true"
+        >
           <User className="h-4 w-4" />
         </div>
       </div>
 
       {/* Bot Answer */}
       <div className="flex justify-start gap-2">
-        <div className="glass-avatar bg-gradient-to-br from-primary to-accent text-primary-foreground rounded-full p-2 h-8 w-8 flex items-center justify-center flex-shrink-0">
+        <div
+          className="glass-avatar bg-gradient-to-br from-primary to-accent text-primary-foreground rounded-full p-2 h-8 w-8 flex items-center justify-center flex-shrink-0"
+          aria-hidden="true"
+        >
           <Bot className="h-4 w-4" />
         </div>
         <div className="flex flex-col items-start gap-1 max-w-[80%]">
-          <div className="relative group glass-message bg-secondary/40 text-secondary-foreground rounded-lg px-4 py-2 w-full transition-all hover:scale-[1.02] hover:shadow-lg">
+          <div
+            className="relative group glass-message bg-secondary/40 text-secondary-foreground rounded-lg px-4 py-2 w-full transition-all hover:scale-[1.02] hover:shadow-lg"
+            role="article"
+            aria-label="Assistant response"
+          >
             <Button
               variant="ghost"
               size="icon"
-              className="absolute top-2 right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+              className="absolute top-2 right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity focus:opacity-100"
               onClick={() => handleCopy(message.id, message.answer)}
+              aria-label={copiedId === message.id ? 'Copied to clipboard' : 'Copy message to clipboard'}
             >
               {copiedId === message.id ? (
-                <Check className="h-3 w-3 text-green-500" />
+                <Check className="h-3 w-3 text-green-500" aria-hidden="true" />
               ) : (
-                <Copy className="h-3 w-3" />
+                <Copy className="h-3 w-3" aria-hidden="true" />
               )}
             </Button>
             <ReactMarkdown
@@ -71,7 +88,9 @@ export const ChatMessage = ({ message }: ChatMessageProps) => {
             </ReactMarkdown>
           </div>
           <span className="text-xs text-muted-foreground px-1">
-            {formatTimestamp(message.timestamp)}
+            <time dateTime={new Date(message.timestamp).toISOString()}>
+              {formatTimestamp(message.timestamp)}
+            </time>
           </span>
         </div>
       </div>
