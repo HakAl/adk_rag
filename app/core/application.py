@@ -1,5 +1,5 @@
 """
-Main application class integrating all services with optional routing.
+Main application class integrating all services with optional routing and coordination.
 """
 from typing import Optional, Dict, Any
 
@@ -9,6 +9,7 @@ from app.services.rag import RAGService
 from app.services.rag_anthropic import RAGAnthropicService
 from app.services.rag_google import RAGGoogleService
 from app.services.adk_agent import ADKAgentService
+from app.services.coordinator_agent import CoordinatorAgentService
 from app.services.router import RouterService
 
 
@@ -47,12 +48,28 @@ class RAGAgentApp:
         except Exception as e:
             logger.warning(f"Google RAG service not available: {e}")
 
-        # Initialize ADK agent
+        # Initialize ADK agent (existing single-agent behavior)
         self.adk_agent = ADKAgentService(
             rag_service=self.rag_service,
             rag_anthropic_service=self.rag_anthropic_service,
             rag_google_service=self.rag_google_service
         )
+
+        # Initialize coordinator agent (optional, NEW)
+        self.coordinator_agent = None
+        if settings.use_coordinator_agent:
+            try:
+                self.coordinator_agent = CoordinatorAgentService(
+                    rag_service=self.rag_service,
+                    rag_anthropic_service=self.rag_anthropic_service,
+                    rag_google_service=self.rag_google_service
+                )
+                logger.info("✓ Coordinator agent enabled with specialist delegation")
+            except Exception as e:
+                logger.error(f"Failed to initialize coordinator agent: {e}")
+                logger.warning("Continuing without coordinator agent")
+        else:
+            logger.info("✗ Coordinator agent disabled")
 
         # Initialize router (conditional on config)
         self.router = RouterService()
@@ -75,6 +92,22 @@ class RAGAgentApp:
             Session ID
         """
         return await self.adk_agent.create_session(user_id)
+
+    async def create_coordinator_session(self, user_id: str = "local_user") -> str:
+        """
+        Create a new chat session for coordinator agent.
+
+        Args:
+            user_id: User identifier
+
+        Returns:
+            Session ID
+        """
+        if self.coordinator_agent:
+            return await self.coordinator_agent.create_session(user_id)
+        else:
+            # Fallback to regular session
+            return await self.create_session(user_id)
 
     async def chat(
         self,
@@ -99,7 +132,7 @@ class RAGAgentApp:
             try:
                 self._last_routing = self.router.route(message)
                 logger.info(
-                    f"📍 Routed to '{self._last_routing['primary_agent']}' "
+                    f"🎯 Routed to '{self._last_routing['primary_agent']}' "
                     f"(confidence: {self._last_routing['confidence']:.2f})"
                 )
             except Exception as e:
@@ -110,6 +143,50 @@ class RAGAgentApp:
         # Note: Current agent handles all request types
         # In future iterations, we'll route to specialized agents based on routing_decision
         response = await self.adk_agent.chat(
+            message=message,
+            user_id=user_id,
+            session_id=session_id
+        )
+
+        return response
+
+    async def coordinator_chat(
+        self,
+        message: str,
+        user_id: str,
+        session_id: str
+    ) -> str:
+        """
+        Process a chat message using coordinator with specialist delegation.
+
+        Args:
+            message: User's message
+            user_id: User identifier
+            session_id: Session identifier
+
+        Returns:
+            Response string (matches existing chat format)
+        """
+        if not self.coordinator_agent:
+            logger.warning("Coordinator agent not available, falling back to regular chat")
+            return await self.chat(message, user_id, session_id)
+
+        logger.info(f"Processing coordinator chat for session {session_id}")
+
+        # Optional: Still use router for analytics even with coordinator
+        self._last_routing = None
+        if self.router.enabled:
+            try:
+                self._last_routing = self.router.route(message)
+                logger.info(
+                    f"🎯 Router classified as '{self._last_routing['primary_agent']}' "
+                    f"(confidence: {self._last_routing['confidence']:.2f})"
+                )
+            except Exception as e:
+                logger.debug(f"Router classification failed: {e}")
+
+        # Use coordinator agent with automatic delegation
+        response = await self.coordinator_agent.chat(
             message=message,
             user_id=user_id,
             session_id=session_id
@@ -144,7 +221,8 @@ class RAGAgentApp:
             "provider_type": settings.provider_type,
             "vector_store_collection": settings.collection_name,
             "document_count": doc_count,
-            "router_enabled": self.router.enabled
+            "router_enabled": self.router.enabled,
+            "coordinator_enabled": self.coordinator_agent is not None
         }
 
         # Add model info based on provider
@@ -157,5 +235,9 @@ class RAGAgentApp:
         # Add router info if enabled
         if self.router.enabled:
             stats["router_model"] = settings.router_model_path
+
+        # Add coordinator info if enabled
+        if self.coordinator_agent:
+            stats["coordinator_specialists"] = len(self.coordinator_agent.specialist_agents)
 
         return stats

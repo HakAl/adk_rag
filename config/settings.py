@@ -72,6 +72,9 @@ class Settings:
     router_temperature: float = 0.3  # Lower for deterministic routing
     router_max_tokens: int = 256
 
+    # Coordinator Agent Configuration (NEW)
+    use_coordinator_agent: bool = False  # Feature flag - disabled by default
+
     # Session Management
     session_timeout_minutes: int = 60
 
@@ -145,6 +148,9 @@ class Settings:
             router_n_threads=int(os.getenv("ROUTER_N_THREADS")) if os.getenv("ROUTER_N_THREADS") else None,
             router_temperature=float(os.getenv("ROUTER_TEMPERATURE", "0.3")),
             router_max_tokens=int(os.getenv("ROUTER_MAX_TOKENS", "256")),
+
+            # Coordinator Agent (NEW)
+            use_coordinator_agent=os.getenv("USE_COORDINATOR_AGENT", "false").lower() == "true",
 
             # Other settings
             log_level=os.getenv("LOG_LEVEL", "INFO"),

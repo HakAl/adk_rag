@@ -175,6 +175,27 @@ async def create_session(
 
 
 @app.post(
+    "/sessions/coordinator",
+    response_model=SessionCreateResponse,
+    dependencies=[Depends(rate_limit_dependency)]
+)
+async def create_coordinator_session(
+    request: SessionCreateRequest,
+    app: RAGAgentApp = Depends(get_app)
+):
+    """Create a new chat session for coordinator agent."""
+    try:
+        session_id = await app.create_coordinator_session(request.user_id)
+        return SessionCreateResponse(
+            session_id=session_id,
+            user_id=request.user_id
+        )
+    except Exception as e:
+        logger.error(f"Error creating coordinator session: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post(
     "/chat",
     response_model=ChatResponse,
     dependencies=[Depends(rate_limit_dependency)]
@@ -278,4 +299,56 @@ async def chat_extended(
         )
     except Exception as e:
         logger.error(f"Error in chat/extended: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post(
+    "/chat/coordinator",
+    response_model=ChatResponse,
+    dependencies=[Depends(rate_limit_dependency)]
+)
+async def chat_coordinator(
+    request: ChatRequest,
+    app: RAGAgentApp = Depends(get_app)
+):
+    """
+    Send a chat message and get response via coordinator with specialist delegation.
+
+    This endpoint uses the coordinator agent which automatically routes requests
+    to specialized agents based on the request type. Falls back to general chat
+    if coordinator is not available.
+
+    Input is automatically validated and sanitized by Pydantic validators.
+    """
+    try:
+        logger.info(
+            f"Coordinator chat request: user={request.user_id}, "
+            f"session={request.session_id[:8]}..., "
+            f"message_length={len(request.message)}"
+        )
+
+        response = await app.coordinator_chat(
+            message=request.message,  # Already sanitized by Pydantic validators
+            user_id=request.user_id,
+            session_id=request.session_id
+        )
+
+        logger.info(f"Coordinator chat response generated: {len(str(response))} chars")
+
+        result = ChatResponse(
+            response=response,
+            session_id=request.session_id,
+            routing_info=None  # Can be enhanced later to show which specialist handled it
+        )
+
+        return result
+
+    except InputSanitizationError as e:
+        logger.warning(f"Input sanitization failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Input validation failed: {str(e)}"
+        )
+    except Exception as e:
+        logger.error(f"Error in chat/coordinator: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
