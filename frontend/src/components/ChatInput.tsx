@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Textarea } from './ui/textarea';
 import { Button } from './ui/button';
 import { Send, Loader2 } from 'lucide-react';
@@ -12,6 +12,27 @@ interface ChatInputProps {
 
 export const ChatInput = ({ onSubmit, disabled, isLoading, error }: ChatInputProps) => {
   const [input, setInput] = useState('');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const adjustHeight = () => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    // Reset height to auto to get the correct scrollHeight
+    textarea.style.height = 'auto';
+
+    // Set height based on content, respecting min and max
+    const scrollHeight = textarea.scrollHeight;
+    const minHeight = 80; // min-h-[80px]
+    const maxHeight = 200; // max-h-[200px]
+
+    const newHeight = Math.min(Math.max(scrollHeight, minHeight), maxHeight);
+    textarea.style.height = `${newHeight}px`;
+  };
+
+  useEffect(() => {
+    adjustHeight();
+  }, [input]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,17 +49,22 @@ export const ChatInput = ({ onSubmit, disabled, isLoading, error }: ChatInputPro
     }
   };
 
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(e.target.value);
+  };
+
   return (
     <div className="flex-shrink-0">
       <form onSubmit={handleSubmit} className="flex gap-3 items-end">
         <Textarea
+          ref={textareaRef}
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={handleChange}
           onKeyDown={handleKeyDown}
           placeholder="Type your message... (Shift+Enter for new line)"
           disabled={disabled || isLoading}
-          className="flex-1 min-h-[80px] max-h-[200px] resize-y transition-all focus:scale-[1.01] focus:mr-1 glass-input"
-          rows={3}
+          className="flex-1 min-h-[80px] max-h-[200px] resize-none transition-all focus:scale-[1.01] focus:mr-1 glass-input overflow-y-auto"
+          rows={1}
         />
         <Button
           type="submit"
