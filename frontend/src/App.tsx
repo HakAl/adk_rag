@@ -1,7 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Settings as SettingsIcon } from 'lucide-react';
 import { Chat } from './components/Chat';
+import { SettingsPanel } from './components/SettingsPanel';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
+import { Button } from './components/ui/button';
+import { useSettings } from './hooks/useSettings';
 
 interface HealthResponse {
   status: string;
@@ -14,6 +18,14 @@ function App() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  const {
+    settings,
+    updateTheme,
+    updateFontSize,
+    resetSettings,
+  } = useSettings();
 
   useEffect(() => {
     const fetchHealth = async () => {
@@ -38,7 +50,7 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="dark h-screen bg-background flex flex-col">
+      <div className="h-screen bg-background flex flex-col">
         {/* Skip to main content link for keyboard navigation */}
         <a
           href="#main-content"
@@ -55,22 +67,19 @@ function App() {
                 VIBE Agent
               </h1>
 
-              {health && (
-                <div
-                  className="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm flex-wrap"
-                  role="status"
-                  aria-live="polite"
+              <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
+                {/* Settings Button */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setSettingsOpen(true)}
+                  className="h-9 w-9 sm:h-10 sm:w-10"
+                  aria-label="Open settings"
+                  aria-expanded={settingsOpen}
                 >
-                  <span className="text-muted-foreground">Status:</span>
-                  <span className="text-green-500 font-semibold" aria-label="System status">
-                    {health.status}
-                  </span>
-                  <span className="text-muted-foreground hidden sm:inline">Version:</span>
-                  <span className="text-muted-foreground hidden sm:inline" aria-label="Application version">
-                    {process.env.REACT_APP_VERSION || '0.1.0'}
-                  </span>
-                </div>
-              )}
+                  <SettingsIcon className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
+                </Button>
+              </div>
             </div>
 
             {loading && (
@@ -94,8 +103,19 @@ function App() {
 
         {/* Chat Area - Full width, remaining height - Mobile optimized */}
         {health && (
-          <div className="flex-1 px-2 sm:px-4 py-2 sm:py-4 min-h-0 overflow-hidden">
+          <div className="flex-1 px-2 sm:px-4 py-2 sm:py-4 min-h-0 overflow-hidden relative">
             <Chat />
+
+            {/* Settings Panel */}
+            <SettingsPanel
+              settings={settings}
+              onThemeChange={updateTheme}
+              onFontSizeChange={updateFontSize}
+              onReset={resetSettings}
+              isOpen={settingsOpen}
+              onClose={() => setSettingsOpen(false)}
+              health={health}
+            />
           </div>
         )}
       </div>
