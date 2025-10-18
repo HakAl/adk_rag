@@ -123,7 +123,7 @@ JSON Response:"""
             prompt,
             max_tokens=settings.router_max_tokens,
             temperature=settings.router_temperature,
-            stop=["User message:", "\n\n\n"]
+            stop=["<|end|>", "<|assistant|>", "<|user|>", "User message:", "\n\n\n"]
         )
 
         return response['choices'][0]['text'].strip()
@@ -139,12 +139,26 @@ JSON Response:"""
             Routing decision dict
         """
         try:
-            # Extract JSON from response
+            # Extract FIRST complete JSON object only
             json_start = response.find('{')
-            json_end = response.rfind('}') + 1
-
-            if json_start == -1 or json_end == 0:
+            if json_start == -1:
                 raise ValueError("No JSON found in response")
+
+            # Find the matching closing brace for the first opening brace
+            brace_count = 0
+            json_end = -1
+
+            for i in range(json_start, len(response)):
+                if response[i] == '{':
+                    brace_count += 1
+                elif response[i] == '}':
+                    brace_count -= 1
+                    if brace_count == 0:
+                        json_end = i + 1
+                        break
+
+            if json_end == -1:
+                raise ValueError("No complete JSON object found in response")
 
             json_str = response[json_start:json_end]
             routing_data = json.loads(json_str)
