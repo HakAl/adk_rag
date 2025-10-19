@@ -21,6 +21,8 @@ from app.api.models import (
     HealthResponse
 )
 from app.utils.input_sanitizer import InputSanitizationError
+from app.db.database import init_db, close_db
+from app.db.session_service import PostgreSQLSessionService
 
 
 # Global app instance
@@ -38,9 +40,18 @@ async def lifespan(app: FastAPI):
     """Application lifespan handler."""
     global rag_app
     logger.info("Starting FastAPI application")
+
+    # Initialize database
+    await init_db()
+
     rag_app = RAGAgentApp()
     yield
+
     logger.info("Shutting down FastAPI application")
+
+    # Close database connections
+    await close_db()
+
     rag_app = None
 
 
@@ -151,6 +162,22 @@ async def get_stats(app: RAGAgentApp = Depends(get_app)):
     except Exception as e:
         logger.error(f"Error getting stats: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/sessions/{session_id}")
+async def get_session(session_id: str):
+    """
+    Check if a session exists.
+
+    Returns 200 if session exists, 404 if not found.
+    """
+    session_service = PostgreSQLSessionService()
+    exists = await session_service.session_exists(session_id)
+
+    if not exists:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    return {"session_id": session_id, "status": "active"}
 
 
 @app.post(

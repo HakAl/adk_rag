@@ -25,6 +25,10 @@ class Settings:
     api_base_url: str = "http://localhost:8000"
     api_timeout: int = 180  # 3 minutes for agent processing
 
+    # Database Configuration
+    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/rag_agent"
+    database_echo: bool = False
+
     # Paths
     base_dir: Path = field(default_factory=lambda: Path(__file__).resolve().parent.parent)
     data_dir: Path = field(init=False)
@@ -132,6 +136,10 @@ class Settings:
             environment=os.getenv("ENVIRONMENT", "development"),
             api_base_url=os.getenv("API_BASE_URL", "http://localhost:8000"),
             api_timeout=int(os.getenv("API_TIMEOUT", "180")),
+
+            # Database
+            database_url=os.getenv("DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/rag_agent"),
+            database_echo=os.getenv("DATABASE_ECHO", "false").lower() == "true",
 
             # Provider
             provider_type=os.getenv("PROVIDER_TYPE", "ollama"),

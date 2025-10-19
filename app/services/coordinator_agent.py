@@ -13,6 +13,7 @@ from app.services.rag_anthropic import RAGAnthropicService
 from app.services.rag_google import RAGGoogleService
 from app.services.router import RouterService
 from app.services.specialist_manager import SpecialistManager
+from app.db.session_service import PostgreSQLSessionService
 
 
 class CoordinatorAgentService:
@@ -42,8 +43,8 @@ class CoordinatorAgentService:
         # Use SpecialistManager for cloud-first specialists with fallback
         self.specialist_manager = SpecialistManager()
 
-        # Session storage (simple in-memory for now)
-        self.sessions: Dict[str, List[Dict[str, str]]] = {}
+        # Use PostgreSQL session service
+        self.session_service = PostgreSQLSessionService()
 
         # Human-readable names for specialists
         self.specialist_names = {
@@ -74,7 +75,12 @@ class CoordinatorAgentService:
             Session ID
         """
         session_id = str(uuid.uuid4())
-        self.sessions[session_id] = []
+        await self.session_service.create_session(
+            app_name="coordinator",
+            user_id=user_id,
+            session_id=session_id,
+            agent_type="coordinator"
+        )
         logger.info(f"Created coordinator session: {session_id}")
         return session_id
 
@@ -162,7 +168,7 @@ class CoordinatorAgentService:
             )
 
             # Store in session history
-            self._add_to_session(session_id, message, response)
+            await self._add_to_session(session_id, message, response)
 
             return response
 
@@ -310,19 +316,10 @@ class CoordinatorAgentService:
             logger.error(f"Fallback also failed: {fallback_error}", exc_info=True)
             return "I apologize, but I'm having trouble processing your request. Please try again."
 
-    def _add_to_session(self, session_id: str, user_msg: str, assistant_msg: str):
-        """Add messages to session history."""
-        if session_id not in self.sessions:
-            self.sessions[session_id] = []
-
-        self.sessions[session_id].append({
-            "role": "user",
-            "content": user_msg
-        })
-        self.sessions[session_id].append({
-            "role": "assistant",
-            "content": assistant_msg
-        })
+    async def _add_to_session(self, session_id: str, user_msg: str, assistant_msg: str):
+        """Add messages to session history in database."""
+        await self.session_service.save_message(session_id, "user", user_msg)
+        await self.session_service.save_message(session_id, "assistant", assistant_msg)
 
     def get_specialist_status(self) -> dict:
         """Get status of all specialist providers."""

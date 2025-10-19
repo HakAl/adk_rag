@@ -7,7 +7,6 @@ from typing import Optional
 from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
 from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService
 from google.genai import types
 
 from config import settings, logger
@@ -15,6 +14,7 @@ from app.services.rag import RAGService
 from app.services.rag_anthropic import RAGAnthropicService
 from app.services.rag_google import RAGGoogleService
 from app.tools import validate_code, create_rag_tools
+from app.db.session_service import PostgreSQLSessionService
 
 
 class ADKAgentService:
@@ -37,7 +37,7 @@ class ADKAgentService:
         self.rag_service = rag_service
         self.rag_anthropic_service = rag_anthropic_service
         self.rag_google_service = rag_google_service
-        self.session_service = InMemorySessionService()
+        self.session_service = PostgreSQLSessionService()
         self.provider_type = settings.provider_type
         self.agent = self._create_agent()
 
@@ -214,10 +214,11 @@ class ADKAgentService:
         await self.session_service.create_session(
             app_name=settings.app_name,
             user_id=user_id,
-            session_id=session_id
+            session_id=session_id,
+            agent_type="adk"
         )
 
-        logger.info(f"Created session: {session_id}")
+        logger.info(f"Created ADK session: {session_id}")
         return session_id
 
     async def chat(
