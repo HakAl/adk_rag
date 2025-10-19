@@ -3,6 +3,7 @@ FastAPI application for RAG Agent with input sanitization and rate limiting.
 """
 from fastapi import FastAPI, HTTPException, Depends, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from contextlib import asynccontextmanager
 from typing import Optional
@@ -61,6 +62,18 @@ app = FastAPI(
     version=settings.version,
     lifespan=lifespan
 )
+
+@app.middleware("http")
+async def disable_compression_for_streams(request: Request, call_next):
+    response = await call_next(request)
+
+    # Disable compression for streaming endpoints
+    if request.url.path.endswith("/stream"):
+        # Remove compression headers if they exist
+        if "content-encoding" in response.headers:
+            del response.headers["content-encoding"]
+
+    return response
 
 # CORS middleware
 app.add_middleware(

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { chatApi, Message, ChatRequest } from '../api/chat';
+import { chatApi, Message } from '../api/chat';
 import { sessionStorage } from './useSessionStorage';
 
 export const useSession = (userId: string = 'web_user') => {
@@ -66,7 +66,7 @@ export const useChat = (sessionId: string | undefined, userId: string) => {
         return updated;
       });
     },
-    onError: (error, message) => {
+    onError: (_error, message) => {
       // Update the optimistic message with an error message
       queryClient.setQueryData<Message[]>(['messages', sessionId], (old = []) => {
         // Find the most recent optimistic message for this question

@@ -158,7 +158,7 @@ export const SettingsPanel = ({
                 <p>
                   <strong className="text-foreground">VIBE Agent</strong>
                 </p>
-                <p>Version: {process.env.REACT_APP_VERSION || '0.1.0'}</p>
+                <p>Version: {import.meta.env.VITE_VERSION || '0.1.0'}</p>
                 {health && (
                   <p role="status" aria-live="polite">
                     Status: <span className="text-green-500 font-semibold">{health.status}</span>

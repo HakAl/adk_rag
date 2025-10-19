@@ -36,7 +36,6 @@ export const Chat = () => {
     createSession,
     updateSessionMetadata,
     deleteSession: deleteStoredSession,
-    refreshSessions
   } = useSessionStorage();
 
   // FIXED: Initialize session from localStorage or create new one
@@ -242,6 +241,7 @@ export const Chat = () => {
                       <StreamingMessage
                         content={streamingContent}
                         routingInfo={routingInfo}
+                        isStreaming={isStreaming}
                       />
                     )}
                   </>
