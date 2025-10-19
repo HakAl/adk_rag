@@ -1,5 +1,6 @@
 """
 Router service for analyzing and classifying incoming requests.
+Supports both local llama.cpp routing and cloud-based routing via Anthropic/Google.
 """
 import json
 from typing import Optional, Dict, Any
@@ -11,23 +12,81 @@ from config import settings, logger
 class RouterService:
     """Service for routing requests to appropriate agents."""
 
+    # JSON grammar for llama.cpp to enforce valid routing response
+    ROUTING_GRAMMAR = r'''
+root ::= routing-object
+routing-object ::= "{" ws "\"primary_agent\"" ws ":" ws string ws "," ws "\"parallel_agents\"" ws ":" ws array ws "," ws "\"confidence\"" ws ":" ws number ws "," ws "\"reasoning\"" ws ":" ws string ws "}"
+
+string ::= "\"" ([^"\\\n] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\""
+number ::= "-"? ("0" | [1-9] [0-9]*) ("." [0-9]+)? ([eE] [-+]? [0-9]+)?
+array ::= "[" ws (string (ws "," ws string)*)? ws "]"
+ws ::= [ \t\n]*
+'''
+
     def __init__(self):
-        """Initialize router service."""
+        """Initialize router service with cloud or local routing."""
         self.enabled = self._check_enabled()
         self.llm = None
+        self.cloud_router = None
+        self.router_type = None
 
         if self.enabled:
-            self._initialize_llm()
-            logger.info(f"RouterService enabled with model: {settings.router_model_path}")
+            # Try cloud routers first (Anthropic preferred over Google)
+            if settings.anthropic_api_key:
+                self._initialize_cloud_router_anthropic()
+            elif settings.google_api_key:
+                self._initialize_cloud_router_google()
+            else:
+                # Fall back to local router
+                self._initialize_llm()
         else:
-            logger.info("RouterService disabled - ROUTER_MODEL_PATH not configured")
+            logger.info("RouterService disabled - no router configured")
 
     def _check_enabled(self) -> bool:
-        """Check if router is enabled based on configuration."""
-        return bool(settings.router_model_path and Path(settings.router_model_path).exists())
+        """
+        Check if router is enabled.
+
+        Router is enabled if EITHER:
+        1. Cloud API keys are available (Anthropic or Google), OR
+        2. Local router model path is configured
+        """
+        has_cloud = bool(settings.anthropic_api_key or settings.google_api_key)
+        has_local = bool(settings.router_model_path and Path(settings.router_model_path).exists())
+
+        return has_cloud or has_local
+
+    def _initialize_cloud_router_anthropic(self):
+        """Initialize Anthropic cloud router."""
+        try:
+            from app.services.cloud_router_anthropic import CloudRouterAnthropicService
+
+            self.cloud_router = CloudRouterAnthropicService()
+            self.router_type = "anthropic"
+            logger.info("✓ RouterService enabled with Anthropic Claude (cloud-based routing)")
+
+        except Exception as e:
+            logger.error(f"Failed to initialize Anthropic cloud router: {e}")
+            # Try Google as fallback
+            if settings.google_api_key:
+                self._initialize_cloud_router_google()
+            else:
+                self.enabled = False
+
+    def _initialize_cloud_router_google(self):
+        """Initialize Google cloud router."""
+        try:
+            from app.services.cloud_router_google import CloudRouterGoogleService
+
+            self.cloud_router = CloudRouterGoogleService()
+            self.router_type = "google"
+            logger.info("✓ RouterService enabled with Google Gemini (cloud-based routing)")
+
+        except Exception as e:
+            logger.error(f"Failed to initialize Google cloud router: {e}")
+            self.enabled = False
 
     def _initialize_llm(self):
-        """Initialize the router LLM."""
+        """Initialize the local router LLM."""
         try:
             from llama_cpp import Llama
 
@@ -39,10 +98,11 @@ class RouterService:
                 temperature=settings.router_temperature,
                 verbose=settings.debug
             )
-            logger.info("Router LLM initialized successfully")
+            self.router_type = "local"
+            logger.info(f"✓ RouterService enabled with local model: {settings.router_model_path}")
 
         except Exception as e:
-            logger.error(f"Failed to initialize router LLM: {e}")
+            logger.error(f"Failed to initialize local router LLM: {e}")
             self.enabled = False
 
     def route(self, message: str) -> Dict[str, Any]:
@@ -73,6 +133,11 @@ class RouterService:
         logger.info(f"Routing request: '{message[:100]}...'")
 
         try:
+            # Delegate to cloud router if available
+            if self.cloud_router:
+                return self.cloud_router.route(message)
+
+            # Otherwise use local router
             prompt = self._build_routing_prompt(message)
             response = self._generate(prompt)
             routing_decision = self._parse_routing_response(response)
@@ -95,7 +160,7 @@ class RouterService:
             }
 
     def _build_routing_prompt(self, message: str) -> str:
-        """Build prompt for routing classification."""
+        """Build prompt for local routing classification."""
         return f"""You are a request classifier. Analyze the user's message and classify it.
 
 Categories:
@@ -129,11 +194,17 @@ Respond ONLY with valid JSON in this exact format:
 JSON Response:"""
 
     def _generate(self, prompt: str) -> str:
-        """Generate response from router LLM."""
+        """Generate response from local router LLM with JSON grammar enforcement."""
+        from llama_cpp import LlamaGrammar
+
+        # Create grammar object to enforce JSON structure
+        grammar = LlamaGrammar.from_string(self.ROUTING_GRAMMAR)
+
         response = self.llm(
             prompt,
             max_tokens=settings.router_max_tokens,
             temperature=settings.router_temperature,
+            grammar=grammar,  # Enforce valid JSON output
             stop=["<|end|>", "<|assistant|>", "<|user|>", "User message:", "\n\n\n"]
         )
 
@@ -141,7 +212,7 @@ JSON Response:"""
 
     def _parse_routing_response(self, response: str) -> Dict[str, Any]:
         """
-        Parse routing response from LLM.
+        Parse routing response from local LLM.
 
         Args:
             response: LLM response text
@@ -150,29 +221,8 @@ JSON Response:"""
             Routing decision dict
         """
         try:
-            # Extract FIRST complete JSON object only
-            json_start = response.find('{')
-            if json_start == -1:
-                raise ValueError("No JSON found in response")
-
-            # Find the matching closing brace for the first opening brace
-            brace_count = 0
-            json_end = -1
-
-            for i in range(json_start, len(response)):
-                if response[i] == '{':
-                    brace_count += 1
-                elif response[i] == '}':
-                    brace_count -= 1
-                    if brace_count == 0:
-                        json_end = i + 1
-                        break
-
-            if json_end == -1:
-                raise ValueError("No complete JSON object found in response")
-
-            json_str = response[json_start:json_end]
-            routing_data = json.loads(json_str)
+            # With grammar enforcement, response should be clean JSON
+            routing_data = json.loads(response)
 
             # Validate required fields
             required_fields = ["primary_agent", "parallel_agents", "confidence", "reasoning"]

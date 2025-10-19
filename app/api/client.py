@@ -85,7 +85,7 @@ class APIClient:
         session_id: str
     ) -> str:
         """
-        Send a chat message and get response.
+        Send a chat message and get response via coordinator with routing.
 
         Args:
             message: User message
@@ -99,7 +99,7 @@ class APIClient:
             httpx.HTTPError: If request fails
         """
         response = await self.client.post(
-            "/chat",
+            "/chat/coordinator",
             json={
                 "message": message,
                 "user_id": user_id,

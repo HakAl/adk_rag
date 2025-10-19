@@ -60,19 +60,32 @@ class Settings:
     llamacpp_temperature: float = 0.7
     llamacpp_max_tokens: int = 512
 
-    # llama-server Configuration
+    # llama-server Configuration (Dual Model Support)
     llama_server_host: str = "127.0.0.1"
-    llama_server_port: int = 8080
+    llama_server_port: int = 8080  # Fast model (Phi-3)
+    llama_server_mistral_port: int = 8081  # Smart model (Mistral-7B)
+
+    # Cloud Provider Configuration
+    anthropic_api_key: Optional[str] = None
+    anthropic_model: str = "claude-sonnet-4-20250514"
+    google_api_key: Optional[str] = None
+    google_model: str = "gemini-2.0-flash-exp"
+
+    # Specialist Fallback Configuration
+    cloud_retry_attempts: int = 3
+    enable_local_fallback: bool = True
+    circuit_breaker_failure_threshold: int = 5
+    circuit_breaker_timeout: int = 60  # seconds
 
     # Router Configuration (Optional - if not set, router is disabled)
     router_model_path: Optional[str] = None
     router_n_ctx: int = 2048
     router_n_batch: int = 512
     router_n_threads: Optional[int] = None
-    router_temperature: float = 0.3  # Lower for deterministic routing
+    router_temperature: float = 0.1  # Lower for deterministic routing
     router_max_tokens: int = 256
 
-    # Coordinator Agent Configuration (NEW)
+    # Coordinator Agent Configuration
     use_coordinator_agent: bool = False  # Feature flag - disabled by default
 
     # Session Management
@@ -137,19 +150,32 @@ class Settings:
             llamacpp_temperature=float(os.getenv("LLAMACPP_TEMPERATURE", "0.7")),
             llamacpp_max_tokens=int(os.getenv("LLAMACPP_MAX_TOKENS", "512")),
 
-            # llama-server
+            # llama-server (Dual Model Support)
             llama_server_host=os.getenv("LLAMA_SERVER_HOST", "127.0.0.1"),
             llama_server_port=int(os.getenv("LLAMA_SERVER_PORT", "8080")),
+            llama_server_mistral_port=int(os.getenv("LLAMA_SERVER_MISTRAL_PORT", "8081")),
+
+            # Cloud Providers
+            anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),
+            anthropic_model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514"),
+            google_api_key=os.getenv("GOOGLE_API_KEY"),
+            google_model=os.getenv("GOOGLE_MODEL", "gemini-2.0-flash-exp"),
+
+            # Specialist Fallback
+            cloud_retry_attempts=int(os.getenv("CLOUD_RETRY_ATTEMPTS", "3")),
+            enable_local_fallback=os.getenv("ENABLE_LOCAL_FALLBACK", "true").lower() == "true",
+            circuit_breaker_failure_threshold=int(os.getenv("CIRCUIT_BREAKER_FAILURE_THRESHOLD", "5")),
+            circuit_breaker_timeout=int(os.getenv("CIRCUIT_BREAKER_TIMEOUT", "60")),
 
             # Router (Optional)
             router_model_path=router_model_path,
             router_n_ctx=int(os.getenv("ROUTER_N_CTX", "2048")),
             router_n_batch=int(os.getenv("ROUTER_N_BATCH", "512")),
             router_n_threads=int(os.getenv("ROUTER_N_THREADS")) if os.getenv("ROUTER_N_THREADS") else None,
-            router_temperature=float(os.getenv("ROUTER_TEMPERATURE", "0.3")),
+            router_temperature=float(os.getenv("ROUTER_TEMPERATURE", "0.1")),
             router_max_tokens=int(os.getenv("ROUTER_MAX_TOKENS", "256")),
 
-            # Coordinator Agent (NEW)
+            # Coordinator Agent
             use_coordinator_agent=os.getenv("USE_COORDINATOR_AGENT", "false").lower() == "true",
 
             # Other settings

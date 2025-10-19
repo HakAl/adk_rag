@@ -41,13 +41,15 @@ class SpecializedAgentsFactory:
     def _create_phi3_model(self) -> LiteLlm:
         """Create phi3mini model instance (fast, for most agents)."""
         if settings.provider_type == "ollama":
+            logger.info("Creating Phi-3 model via Ollama")
             return LiteLlm(
                 model="ollama_chat/phi3:mini",
                 supports_function_calling=True
             )
         else:  # llamacpp
+            logger.info(f"Creating Phi-3 model via llama-server on port {settings.llama_server_port}")
             return LiteLlm(
-                model="openai/local-model",
+                model="openai/phi3-fast",
                 api_base=f"http://{settings.llama_server_host}:{settings.llama_server_port}/v1",
                 api_key="dummy",
                 supports_function_calling=True
@@ -56,12 +58,19 @@ class SpecializedAgentsFactory:
     def _create_mistral_model(self) -> LiteLlm:
         """Create mistral7b model instance (slower, for complex reasoning)."""
         if settings.provider_type == "ollama":
+            logger.info("Creating Mistral-7B model via Ollama")
             return LiteLlm(
                 model="ollama_chat/mistral",
                 supports_function_calling=True
             )
-        else:  # llamacpp - use same as phi3 if only one server
-            return self._create_phi3_model()
+        else:  # llamacpp
+            logger.info(f"Creating Mistral-7B model via llama-server on port {settings.llama_server_mistral_port}")
+            return LiteLlm(
+                model="openai/mistral-smart",
+                api_base=f"http://{settings.llama_server_host}:{settings.llama_server_mistral_port}/v1",
+                api_key="dummy",
+                supports_function_calling=True
+            )
 
     def create_code_validation_agent(self) -> LlmAgent:
         """
@@ -236,6 +245,7 @@ You don't have access to tools - rely on your training for answers.""",
         logger.info(f"Created {len(agents)} specialized agents")
         for agent in agents:
             tool_count = len(agent.tools) if agent.tools else 0
-            logger.info(f"  - {agent.name}: {tool_count} tools")
+            model_name = "Mistral-7B" if agent.model == self.mistral_model else "Phi-3"
+            logger.info(f"  - {agent.name}: {model_name}, {tool_count} tools")
 
         return agents

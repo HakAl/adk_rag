@@ -1,10 +1,12 @@
 """
 Start llama-server on Windows for ADK tool calling support.
+Supports dual model setup: Phi-3 (fast) and Mistral-7B (smart).
 Uses .env configuration for consistency with main application.
 """
 import subprocess
 import sys
 import os
+import time
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -25,18 +27,30 @@ def get_required_env(var_name: str) -> str:
     return value
 
 
+def get_optional_env(var_name: str, default: str = None) -> str:
+    """Get optional environment variable with default."""
+    return os.getenv(var_name, default)
+
+
 # Required paths
 LLAMA_SERVER_PATH = get_required_env("LLAMA_SERVER_PATH")
-
-# Convert Docker container path to Windows path
-MODEL_PATH_CONTAINER = get_required_env("LLAMACPP_CHAT_MODEL_PATH")
 MODELS_BASE_DIR = get_required_env("MODELS_BASE_DIR")
 
-# Convert /chat/model.gguf to C:\...\models\chat\model.gguf
-MODEL_PATH = os.path.join(MODELS_BASE_DIR, MODEL_PATH_CONTAINER.lstrip('/').replace('/', '\\'))
+# Phi-3 (Fast) Model Configuration
+PHI3_MODEL_PATH_CONTAINER = get_required_env("LLAMACPP_CHAT_MODEL_PATH")
+PHI3_MODEL_PATH = os.path.join(MODELS_BASE_DIR, PHI3_MODEL_PATH_CONTAINER.lstrip('/').replace('/', '\\'))
+PHI3_PORT = int(get_required_env("LLAMA_SERVER_PORT"))
+
+# Mistral-7B (Smart) Model Configuration - Optional for dual model setup
+MISTRAL_MODEL_PATH_CONTAINER = get_optional_env("LLAMACPP_MISTRAL_MODEL_PATH")
+MISTRAL_PORT = int(get_optional_env("LLAMA_SERVER_MISTRAL_PORT", "8081"))
+
+if MISTRAL_MODEL_PATH_CONTAINER:
+    MISTRAL_MODEL_PATH = os.path.join(MODELS_BASE_DIR, MISTRAL_MODEL_PATH_CONTAINER.lstrip('/').replace('/', '\\'))
+else:
+    MISTRAL_MODEL_PATH = None
 
 # Server configuration
-PORT = int(get_required_env("LLAMA_SERVER_PORT"))
 HOST = get_required_env("LLAMA_SERVER_HOST")
 CONTEXT_SIZE = int(get_required_env("LLAMACPP_N_CTX"))
 THREADS = int(get_required_env("LLAMACPP_N_THREADS"))
@@ -46,20 +60,19 @@ THREADS = int(get_required_env("LLAMACPP_N_THREADS"))
 # ============================================
 
 
-def check_model_exists():
+def check_model_exists(model_path: str, model_name: str) -> bool:
     """Check if the model file exists."""
-    if not os.path.exists(MODEL_PATH):
-        print(f"❌ Error: Model file not found at: {MODEL_PATH}")
-        print(f"\nConverted from Docker path: {MODEL_PATH_CONTAINER}")
-        print(f"Using base directory: {MODELS_BASE_DIR}")
+    if not os.path.exists(model_path):
+        print(f"❌ Error: {model_name} model file not found at: {model_path}")
+        print(f"\nUsing base directory: {MODELS_BASE_DIR}")
         print("\nPlease verify:")
         print("1. MODELS_BASE_DIR points to your models directory")
-        print("2. LLAMACPP_CHAT_MODEL_PATH matches your Docker container structure")
+        print(f"2. Model path is correct in .env file")
         return False
     return True
 
 
-def check_server_exists():
+def check_server_exists() -> bool:
     """Check if llama-server executable exists."""
     if not os.path.exists(LLAMA_SERVER_PATH):
         print(f"❌ Error: llama-server not found at: {LLAMA_SERVER_PATH}")
@@ -72,38 +85,37 @@ def check_server_exists():
     return True
 
 
-def start_llama_server():
-    """Start the llama-server process."""
+def check_server_health(port: int) -> bool:
+    """Check if server is already running on given port."""
+    try:
+        import requests
+        response = requests.get(f"http://localhost:{port}/health", timeout=2)
+        if response.status_code == 200:
+            return True
+    except:
+        pass
+    return False
 
-    # Check server executable exists
-    if not check_server_exists():
-        return False
 
-    # Check model exists
-    if not check_model_exists():
-        return False
+def start_server(model_path: str, port: int, model_name: str):
+    """Start a llama-server process."""
 
-    print("=" * 60)
-    print("Starting llama-server for ADK tool calling")
-    print("=" * 60)
-    print(f"Server Path: {LLAMA_SERVER_PATH}")
-    print(f"Model Path:  {MODEL_PATH}")
-    print(f"  (from Docker path: {MODEL_PATH_CONTAINER})")
-    print(f"Port:        {PORT}")
+    print(f"\n{'=' * 60}")
+    print(f"Starting llama-server: {model_name}")
+    print(f"{'=' * 60}")
+    print(f"Model Path:  {model_path}")
+    print(f"Port:        {port}")
     print(f"Host:        {HOST}")
     print(f"Context:     {CONTEXT_SIZE}")
     print(f"Threads:     {THREADS}")
     print(f"Tool Support: ENABLED (--jinja flag)")
-    print("=" * 60)
-    print("\nConfiguration loaded from .env file")
-    print("Starting server... (Press Ctrl+C to stop)")
-    print()
+    print(f"{'=' * 60}\n")
 
-    # Build command with --jinja flag for tool calling support
+    # Build command
     cmd = [
         LLAMA_SERVER_PATH,
-        "-m", MODEL_PATH,
-        "--port", str(PORT),
+        "-m", model_path,
+        "--port", str(port),
         "--host", HOST,
         "-c", str(CONTEXT_SIZE),
         "-t", str(THREADS),
@@ -118,72 +130,142 @@ def start_llama_server():
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             universal_newlines=True,
-            bufsize=1
+            bufsize=1,
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == 'win32' else 0
         )
 
-        # Stream output
-        for line in process.stdout:
-            print(line, end='')
-
-        process.wait()
-
-    except KeyboardInterrupt:
-        print("\n\n🛑 Stopping llama-server...")
-        process.terminate()
-        process.wait()
-        print("✅ Server stopped")
+        return process
 
     except FileNotFoundError:
         print(f"❌ Error: Could not find executable at: {LLAMA_SERVER_PATH}")
-        return False
+        return None
 
     except Exception as e:
         print(f"❌ Error starting server: {e}")
-        return False
-
-    return True
+        return None
 
 
-def check_server_health():
-    """Check if server is already running."""
+def stream_output(process, model_name: str):
+    """Stream output from a process."""
     try:
-        import requests
-        response = requests.get(f"http://localhost:{PORT}/health", timeout=2)
-        if response.status_code == 200:
-            print(f"✅ llama-server is already running on port {PORT}")
-            print(f"  Access it at: http://localhost:{PORT}")
-            return True
+        for line in process.stdout:
+            print(f"[{model_name}] {line}", end='')
     except:
         pass
-    return False
 
 
-if __name__ == "__main__":
+def main():
+    """Main function to start llama-server(s)."""
+
     print("\nllama-server Startup Script for Windows")
     print("Configuration loaded from .env file")
     print("-" * 60)
 
-    # Check if already running
-    if check_server_health():
-        print("\nServer is already running. Stop it first if you want to restart.")
+    # Check server executable exists
+    if not check_server_exists():
+        sys.exit(1)
+
+    # Determine if running dual model setup
+    dual_mode = MISTRAL_MODEL_PATH is not None
+
+    if dual_mode:
+        print("\n🔄 DUAL MODEL MODE DETECTED")
+        print(f"  Fast Model (Phi-3):     Port {PHI3_PORT}")
+        print(f"  Smart Model (Mistral):  Port {MISTRAL_PORT}")
+    else:
+        print("\n⚡ SINGLE MODEL MODE")
+        print(f"  Model (Phi-3):          Port {PHI3_PORT}")
+        print("\n💡 Tip: Set LLAMACPP_MISTRAL_MODEL_PATH in .env for dual model support")
+
+    # Check if servers are already running
+    phi3_running = check_server_health(PHI3_PORT)
+    mistral_running = check_server_health(MISTRAL_PORT) if dual_mode else False
+
+    if phi3_running:
+        print(f"\n✅ Phi-3 server already running on port {PHI3_PORT}")
+    if mistral_running:
+        print(f"✅ Mistral server already running on port {MISTRAL_PORT}")
+
+    if phi3_running and (not dual_mode or mistral_running):
+        print("\nAll required servers are already running.")
+        print("Stop them first if you want to restart.")
         sys.exit(0)
 
-    # Start the server
-    success = start_llama_server()
-
-    if not success:
-        print("\n❌ Failed to start llama-server")
-        print("\nTroubleshooting:")
-        print("1. Make sure llama.cpp is built: cmake --build build --config Release")
-        print("2. Verify these variables in your .env file:")
-        print("   - LLAMA_SERVER_PATH (path to llama-server.exe)")
-        print("   - MODELS_BASE_DIR (base directory where models are stored)")
-        print("   - LLAMACPP_CHAT_MODEL_PATH (Docker container path, e.g., /chat/model.gguf)")
-        print("   - LLAMA_SERVER_PORT")
-        print("   - LLAMA_SERVER_HOST")
-        print("   - LLAMACPP_N_CTX")
-        print("   - LLAMACPP_N_THREADS")
-        print("3. Check that your model file (.gguf) exists at the converted path")
-        print("\nOr consider switching to Ollama for easier setup:")
-        print("   https://ollama.com/download")
+    # Verify model files exist
+    if not phi3_running and not check_model_exists(PHI3_MODEL_PATH, "Phi-3"):
         sys.exit(1)
+
+    if dual_mode and not mistral_running and not check_model_exists(MISTRAL_MODEL_PATH, "Mistral-7B"):
+        sys.exit(1)
+
+    # Start servers
+    processes = []
+
+    try:
+        # Start Phi-3 server
+        if not phi3_running:
+            print("\n🚀 Starting Phi-3 server (fast model)...")
+            phi3_process = start_server(PHI3_MODEL_PATH, PHI3_PORT, "Phi-3")
+            if phi3_process:
+                processes.append(("Phi-3", phi3_process))
+                time.sleep(2)  # Give it time to start
+            else:
+                print("❌ Failed to start Phi-3 server")
+                sys.exit(1)
+
+        # Start Mistral server if dual mode
+        if dual_mode and not mistral_running:
+            print("\n🎯 Starting Mistral-7B server (smart model)...")
+            mistral_process = start_server(MISTRAL_MODEL_PATH, MISTRAL_PORT, "Mistral-7B")
+            if mistral_process:
+                processes.append(("Mistral-7B", mistral_process))
+                time.sleep(2)  # Give it time to start
+            else:
+                print("❌ Failed to start Mistral-7B server")
+                # Stop Phi-3 if it was just started
+                if not phi3_running:
+                    processes[0][1].terminate()
+                sys.exit(1)
+
+        print("\n" + "=" * 60)
+        print("✅ All servers started successfully!")
+        print("=" * 60)
+        if not phi3_running:
+            print(f"  Phi-3:     http://localhost:{PHI3_PORT}")
+        if dual_mode and not mistral_running:
+            print(f"  Mistral:   http://localhost:{MISTRAL_PORT}")
+        print("\nPress Ctrl+C to stop all servers")
+        print("=" * 60 + "\n")
+
+        # Wait for processes and stream output
+        while True:
+            for name, process in processes:
+                if process.poll() is not None:
+                    print(f"\n❌ {name} server stopped unexpectedly")
+                    raise KeyboardInterrupt
+            time.sleep(1)
+
+    except KeyboardInterrupt:
+        print("\n\n🛑 Stopping llama-server(s)...")
+        for name, process in processes:
+            try:
+                process.terminate()
+                print(f"  Stopping {name}...")
+                process.wait(timeout=5)
+            except:
+                process.kill()
+        print("✅ All servers stopped")
+
+    except Exception as e:
+        print(f"\n❌ Error: {e}")
+        for name, process in processes:
+            try:
+                process.terminate()
+                process.wait(timeout=5)
+            except:
+                process.kill()
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

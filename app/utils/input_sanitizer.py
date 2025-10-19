@@ -44,12 +44,11 @@ class InputSanitizer:
         r'UNION\s+(ALL\s+)?SELECT',
         r'CAST\s*\(\s*.*\s+AS\s+',
         r'information_schema',
-        r'(pg_|mysql\.|sys\.|master\.)',
+        r'(pg_|mysql\.|master\.)',
         r'xp_cmdshell',
         r'INTO\s+(OUTFILE|DUMPFILE)',
         r'[\|&;]\s*(rm|mv|cp|cat|chmod|wget|curl|nc|bash|sh|python|perl|ruby)',
-        # Removed overly aggressive backtick pattern - code examples need backticks!
-        r'\$\(\s*(rm|mv|wget|curl|bash|sh)\s*\)',  # Only flag command substitution with dangerous commands
+        r'\$\(\s*(rm|mv|wget|curl|bash|sh)\s*\)',
         r'\.\.[/\\]',
         r'[/\\]etc[/\\]passwd',
         r'[/\\]windows[/\\]system32',
