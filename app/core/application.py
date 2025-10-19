@@ -207,7 +207,7 @@ class RAGAgentApp:
                 session_id=session_id
         ):
             yield event
-            
+
     def get_last_routing(self) -> Optional[Dict[str, Any]]:
         """
         Get routing info from the last chat call.
@@ -247,7 +247,13 @@ class RAGAgentApp:
         if self.router.enabled:
             stats["router_model"] = settings.router_model_path
 
+        # FIXED: Use specialist_manager.get_status() instead of specialist_agents
         if self.coordinator_agent:
-            stats["coordinator_specialists"] = len(self.coordinator_agent.specialist_agents)
+            specialist_status = self.coordinator_agent.get_specialist_status()
+            stats["coordinator_specialists"] = {
+                "anthropic": specialist_status["anthropic"]["available"],
+                "google": specialist_status["google"]["available"],
+                "local": specialist_status["local"]["available"]
+            }
 
         return stats

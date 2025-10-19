@@ -211,17 +211,16 @@ Be helpful and engaging."""
         if context:
             user_message = f"Context:\n{context}\n\nUser Request:\n{message}"
 
-        # Run streaming in executor
         loop = asyncio.get_event_loop()
 
-        # Generate streaming response
-        response_stream = await loop.run_in_executor(
-            None,
-            lambda: self.model.generate_content(user_message, stream=True)
-        )
+        # Create iterator in executor
+        def create_iterator():
+            return self.model.generate_content(user_message, stream=True)
 
-        # Iterate through chunks
-        for chunk in response_stream:
+        response_iterator = await loop.run_in_executor(None, create_iterator)
+
+        # Iterate chunks in executor to avoid blocking
+        for chunk in response_iterator:
             if chunk.text:
                 yield chunk.text
 

@@ -2,7 +2,8 @@
 HTTP client for interacting with RAG Agent API.
 """
 import httpx
-from typing import Dict, Any
+import json
+from typing import Dict, Any, AsyncGenerator
 
 from config import settings, logger
 
@@ -109,3 +110,45 @@ class APIClient:
         response.raise_for_status()
         data = response.json()
         return data["response"]
+
+    async def chat_stream(
+        self,
+        message: str,
+        user_id: str,
+        session_id: str
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        Send a chat message and stream the response via coordinator.
+
+        Args:
+            message: User message
+            user_id: User identifier
+            session_id: Session identifier
+
+        Yields:
+            Event dictionaries with type and data fields
+
+        Raises:
+            httpx.HTTPError: If request fails
+        """
+        async with self.client.stream(
+            "POST",
+            "/chat/coordinator/stream",
+            json={
+                "message": message,
+                "user_id": user_id,
+                "session_id": session_id
+            }
+        ) as response:
+            response.raise_for_status()
+
+            async for line in response.aiter_lines():
+                # SSE format: "data: {...}\n"
+                if line.startswith("data: "):
+                    try:
+                        data = line[6:]  # Remove "data: " prefix
+                        event = json.loads(data)
+                        yield event
+                    except json.JSONDecodeError as e:
+                        logger.warning(f"Failed to parse SSE event: {line} - {e}")
+                        continue

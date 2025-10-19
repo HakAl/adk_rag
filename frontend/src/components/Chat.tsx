@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useChat } from '../hooks/useChat';
+import { useChatStream } from '../hooks/useChatStream';
 import { useSessionStorage, sessionStorage } from '../hooks/useSessionStorage';
 import { Message } from '../api/chat';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { ScrollArea } from './ui/scroll-area';
-import { Loader2, Bot, Menu } from 'lucide-react';
+import { Loader2, Menu } from 'lucide-react';
 import { Button } from './ui/button';
 import { ChatMessage } from './ChatMessage';
+import { StreamingMessage } from './StreamingMessage';
 import { ChatInput } from './ChatInput';
 import { SessionSidebar } from './SessionSidebar';
 import { useEasterEggs } from '../hooks/useEasterEggs';
@@ -21,7 +22,14 @@ export const Chat = () => {
   const [isInitializing, setIsInitializing] = useState(true);
 
   const queryClient = useQueryClient();
-  const mutation = useChat(currentSessionId, userId);
+  const {
+    sendMessage,
+    isStreaming,
+    error: streamError,
+    routingInfo,
+    streamingContent
+  } = useChatStream(currentSessionId, userId);
+
   const { checkEasterEgg } = useEasterEggs();
   const {
     sessions,
@@ -75,8 +83,9 @@ export const Chat = () => {
       const firstUserMessage = messages[0]?.question;
       updateSessionMetadata(currentSessionId, messages.length, firstUserMessage);
     }
-  }, [messages.length, currentSessionId]); // Removed updateSessionMetadata from deps - we only care about message count changes
+  }, [messages.length, currentSessionId]);
 
+  // Auto-scroll when messages change or streaming updates
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTo({
@@ -84,7 +93,7 @@ export const Chat = () => {
         behavior: 'smooth'
       });
     }
-  }, [messages.length, mutation.isPending]);
+  }, [messages.length, isStreaming, streamingContent]);
 
   // FIXED: Create new session via backend API
   const handleNewSession = async () => {
@@ -136,7 +145,7 @@ export const Chat = () => {
     }
   };
 
-  const handleSubmit = (input: string) => {
+  const handleSubmit = async (input: string) => {
     if (!currentSessionId) return;
 
     // Check for easter eggs
@@ -161,9 +170,8 @@ export const Chat = () => {
       return [...old, optimisticMessage];
     });
 
-    // Let the mutation handle adding the message once the API responds
-    // The "Thinking..." indicator will show during the loading state
-    mutation.mutate(input);
+    // Send message with streaming
+    await sendMessage(input);
   };
 
   // FIXED: Show loading state during initialization
@@ -221,38 +229,31 @@ export const Chat = () => {
               aria-label="Chat conversation"
             >
               <div className="space-y-3 sm:space-y-4">
-                {messages.length === 0 ? (
+                {messages.length === 0 && !isStreaming ? (
                   <p className="text-muted-foreground text-center py-8 text-sm sm:text-base px-4">
                     Start a conversation by typing a message below
                   </p>
                 ) : (
-                  messages.map((msg) => <ChatMessage key={msg.id} message={msg} />)
-                )}
+                  <>
+                    {messages.map((msg) => <ChatMessage key={msg.id} message={msg} />)}
 
-                {mutation.isPending && (
-                  <div
-                    className="flex justify-start gap-1 sm:gap-2 animate-fade-in"
-                    role="status"
-                    aria-live="polite"
-                    aria-label="Assistant is thinking"
-                  >
-                    <div className="glass-avatar bg-gradient-to-br from-primary to-accent text-primary-foreground rounded-full p-1.5 sm:p-2 h-7 w-7 sm:h-8 sm:w-8 flex items-center justify-center flex-shrink-0">
-                      <Bot className="h-3.5 w-3.5 sm:h-4 sm:w-4" aria-hidden="true" />
-                    </div>
-                    <div className="glass-message bg-secondary/30 text-secondary-foreground rounded-lg px-3 sm:px-4 py-2 flex items-center gap-2 text-sm sm:text-base">
-                      <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" aria-hidden="true" />
-                      <span className="animate-pulse">Thinking...</span>
-                    </div>
-                  </div>
+                    {/* Show streaming message */}
+                    {isStreaming && (
+                      <StreamingMessage
+                        content={streamingContent}
+                        routingInfo={routingInfo}
+                      />
+                    )}
+                  </>
                 )}
               </div>
             </ScrollArea>
 
             <ChatInput
               onSubmit={handleSubmit}
-              disabled={!currentSessionId}
-              isLoading={mutation.isPending}
-              error={mutation.isError ? mutation.error.message : null}
+              disabled={!currentSessionId || isStreaming}
+              isLoading={isStreaming}
+              error={streamError ? streamError.message : null}
             />
           </CardContent>
         </Card>

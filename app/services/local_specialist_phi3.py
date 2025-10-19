@@ -166,7 +166,7 @@ You are a helpful assistant. Provide clear, friendly, and professional responses
         """Generate streaming response using Phi-3."""
         loop = asyncio.get_event_loop()
 
-        # Create generator in executor
+        # Create the streaming generator in executor
         def create_stream():
             return self.model(
                 prompt,
@@ -176,10 +176,19 @@ You are a helpful assistant. Provide clear, friendly, and professional responses
                 stream=True
             )
 
-        stream = await loop.run_in_executor(None, create_stream)
+        stream_gen = await loop.run_in_executor(None, create_stream)
 
-        # Yield chunks as they arrive
-        for chunk in stream:
+        # Process each chunk in executor to avoid blocking
+        def get_next_chunk(iterator):
+            try:
+                return next(iterator)
+            except StopIteration:
+                return None
+
+        while True:
+            chunk = await loop.run_in_executor(None, get_next_chunk, stream_gen)
+            if chunk is None:
+                break
             if 'choices' in chunk and len(chunk['choices']) > 0:
                 text = chunk['choices'][0].get('text', '')
                 if text:

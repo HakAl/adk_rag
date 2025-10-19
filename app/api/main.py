@@ -24,6 +24,7 @@ from app.utils.input_sanitizer import InputSanitizationError
 from app.db.database import init_db, close_db
 from app.db.session_service import PostgreSQLSessionService
 import json
+import asyncio
 
 # Global app instance
 rag_app: Optional[RAGAgentApp] = None
@@ -446,5 +447,6 @@ async def chat_coordinator_stream(
         headers={
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",  # Disable nginx buffering
+            "Connection": "keep-alive",
         }
     )

@@ -1,5 +1,5 @@
 """
-Command-line interface for the RAG Agent with input validation.
+Command-line interface for the RAG Agent with streaming support.
 """
 import asyncio
 import sys
@@ -54,7 +54,7 @@ class MessageValidator(Validator):
 
 
 class CLI:
-    """Interactive command-line interface with input validation."""
+    """Interactive command-line interface with streaming support."""
 
     def __init__(self, api_client: APIClient):
         """
@@ -125,6 +125,9 @@ class CLI:
         print("\n  Input Limits:")
         print("  - Maximum message length: 8000 characters")
         print("  - Messages are validated for security")
+        print("\n  Features:")
+        print("  - 🔄 Real-time streaming responses")
+        print("  - 🎯 Smart routing to specialized agents")
         print("=" * 70 + "\n")
 
     def validate_user_input(self, user_input: str) -> tuple[bool, Optional[str]]:
@@ -156,7 +159,7 @@ class CLI:
             return True, None
 
     async def run(self):
-        """Run the interactive CLI."""
+        """Run the interactive CLI with streaming support."""
         try:
             # Check API health
             health = await self.api_client.health_check()
@@ -211,33 +214,9 @@ class CLI:
                     print("   Please rephrase your message and try again.\n")
                     continue
 
-                # Get response from agent via API
-                print("\n🤖 Assistant: ", end="", flush=True)
-                print("🔄 Processing", end="", flush=True)
-
+                # Stream response from agent via API
                 try:
-                    result = await self.api_client.chat(
-                        message=user_input,
-                        user_id=self.user_id,
-                        session_id=self.session_id
-                    )
-
-                    # Clear the "Processing..." line
-                    print("\r🤖 Assistant: " + " " * 20 + "\r🤖 Assistant: ", end="", flush=True)
-
-                    # Handle dict response (with routing info) or string response (legacy)
-                    if isinstance(result, dict):
-                        response_text = result.get('response', str(result))
-
-                        # Show routing info if present and in debug mode
-                        if settings.debug and result.get('routing_info'):
-                            routing = result['routing_info']
-                            print(f"[🎯 {routing['agent']} | confidence: {routing['confidence']:.2f}]")
-
-                        print(response_text)
-                    else:
-                        # Legacy string response
-                        print(result)
+                    await self._handle_streaming_response(user_input)
 
                 except httpx.HTTPStatusError as e:
                     # Handle HTTP errors from API (including validation errors)
@@ -283,6 +262,63 @@ class CLI:
                 logger.error(f"Error in CLI: {e}", exc_info=True)
                 print(f"\n❌ Error: {e}")
 
+    async def _handle_streaming_response(self, user_input: str):
+        """
+        Handle streaming response from the API.
+
+        Args:
+            user_input: User's message
+        """
+        print("\n🤖 Assistant: ", end="", flush=True)
+
+        routing_shown = False
+        response_started = False
+
+        async for event in self.api_client.chat_stream(
+            message=user_input,
+            user_id=self.user_id,
+            session_id=self.session_id
+        ):
+            event_type = event.get("type")
+            event_data = event.get("data", {})
+
+            if event_type == "routing":
+                # Show routing info
+                agent_name = event_data.get("agent_name", "Unknown")
+                confidence = event_data.get("confidence", 0.0)
+
+                if settings.debug:
+                    # In debug mode, show detailed routing
+                    reasoning = event_data.get("reasoning", "")
+                    print(f"[🎯 {agent_name} | confidence: {confidence:.2f}]")
+                    if reasoning:
+                        print(f"[💭 {reasoning}]")
+                    print("\n🤖 Assistant: ", end="", flush=True)
+                else:
+                    # In normal mode, just show a brief indicator
+                    print(f"🎯 {agent_name}...\n\n", end="", flush=True)
+
+                routing_shown = True
+
+            elif event_type == "content":
+                # Stream content chunks as they arrive
+                if not response_started:
+                    response_started = True
+                print(event_data, end="", flush=True)
+
+            elif event_type == "done":
+                # Response complete
+                if response_started:
+                    print("\n")  # Final newline after response
+                else:
+                    print("(No response generated)\n")
+
+            elif event_type == "error":
+                # Handle error events
+                error_msg = event_data.get("message", "Unknown error")
+                print(f"\n\n❌ Error: {error_msg}\n")
+                break
+
     async def _print_stats(self):
         """Print application statistics."""
         try:
@@ -315,7 +351,8 @@ class CLI:
             else:
                 print(f"    Document Chunks: 0 (empty)")
 
-            print(f"\n  Security:")
+            print(f"\n  Features:")
+            print(f"    Streaming: ✅ Enabled")
             print(f"    Input Validation: ✅ Enabled")
             print(f"    Max Message Length: 8000 characters")
             print(f"    Rate Limiting: ✅ Enabled (server-side)")

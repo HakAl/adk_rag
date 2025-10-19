@@ -21,6 +21,18 @@ export interface ChatResponse {
   session_id: string;
 }
 
+export interface StreamEvent {
+  type: 'routing' | 'content' | 'done' | 'error';
+  data: any;
+}
+
+export interface RoutingInfo {
+  agent: string;
+  agent_name: string;
+  confidence: number;
+  reasoning?: string;
+}
+
 export const chatApi = {
   createSession: async (userId: string = 'web_user'): Promise<SessionResponse> => {
     // FIXED: Use coordinator endpoint to match backend flow
@@ -49,5 +61,66 @@ export const chatApi = {
     }
 
     return response.json();
+  },
+
+  streamMessage: async (
+    request: ChatRequest,
+    onEvent: (event: StreamEvent) => void
+  ): Promise<void> => {
+    const response = await fetch('/chat/coordinator/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to stream message');
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error('No response body');
+    }
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        console.log('🔥 Raw chunk received, size:', value?.length, 'done:', done);
+
+        if (done) break;
+
+        // Decode the chunk and add to buffer
+        buffer += decoder.decode(value, { stream: true });
+        console.log('📦 Buffer now:', buffer.length, 'chars');
+
+        // Split on double newline (SSE event separator)
+        const events = buffer.split('\n\n');
+
+        // Keep the last incomplete event in buffer
+        buffer = events.pop() || '';
+
+        // Process complete events
+        for (const event of events) {
+          const lines = event.split('\n');
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = line.slice(6);
+                const parsedEvent: StreamEvent = JSON.parse(data);
+                onEvent(parsedEvent);
+              } catch (e) {
+                console.error('Failed to parse SSE event:', line, e);
+              }
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
   },
 };

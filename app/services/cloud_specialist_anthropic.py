@@ -3,7 +3,7 @@ Cloud specialist service using Anthropic's Claude API.
 """
 import asyncio
 from typing import Dict, Any, AsyncGenerator
-from anthropic import Anthropic, RateLimitError, APIError
+from anthropic import AsyncAnthropic, RateLimitError, APIError
 
 from config import settings, logger
 
@@ -70,7 +70,7 @@ Be helpful and engaging."""
             specialist_type: Type of specialist (code_validation, etc.)
         """
         self.specialist_type = specialist_type
-        self.client = Anthropic(api_key=settings.anthropic_api_key)
+        self.client = AsyncAnthropic(api_key=settings.anthropic_api_key)
         self.model = settings.anthropic_model
         self.system_prompt = self.SPECIALIST_PROMPTS.get(
             specialist_type,
@@ -179,19 +179,14 @@ Be helpful and engaging."""
         if context:
             user_message = f"Context:\n{context}\n\nUser Request:\n{message}"
 
-        # Make synchronous call in executor to avoid blocking
-        loop = asyncio.get_event_loop()
-        response = await loop.run_in_executor(
-            None,
-            lambda: self.client.messages.create(
-                model=self.model,
-                max_tokens=2048,
-                temperature=0.7,
-                system=self.system_prompt,
-                messages=[
-                    {"role": "user", "content": user_message}
-                ]
-            )
+        response = await self.client.messages.create(
+            model=self.model,
+            max_tokens=2048,
+            temperature=0.7,
+            system=self.system_prompt,
+            messages=[
+                {"role": "user", "content": user_message}
+            ]
         )
 
         return response.content[0].text.strip()
@@ -216,25 +211,15 @@ Be helpful and engaging."""
         if context:
             user_message = f"Context:\n{context}\n\nUser Request:\n{message}"
 
-        # Run streaming in executor
-        loop = asyncio.get_event_loop()
-
-        # Create the stream
-        def create_stream():
-            return self.client.messages.stream(
-                model=self.model,
-                max_tokens=2048,
-                temperature=0.7,
-                system=self.system_prompt,
-                messages=[
-                    {"role": "user", "content": user_message}
-                ]
-            )
-
-        stream = await loop.run_in_executor(None, create_stream)
-
-        # Iterate through stream in executor
-        async with stream:
+        async with self.client.messages.stream(
+            model=self.model,
+            max_tokens=2048,
+            temperature=0.7,
+            system=self.system_prompt,
+            messages=[
+                {"role": "user", "content": user_message}
+            ]
+        ) as stream:
             async for text in stream.text_stream:
                 yield text
 
