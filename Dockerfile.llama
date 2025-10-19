@@ -1,0 +1,88 @@
+# Dockerfile for llama-server
+FROM ubuntu:22.04
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
+    git \
+    curl \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Clone and build llama.cpp
+WORKDIR /build
+RUN git clone https://github.com/ggerganov/llama.cpp.git && \
+    cd llama.cpp && \
+    mkdir build && \
+    cd build && \
+    cmake .. -DLLAMA_CUBLAS=OFF && \
+    cmake --build . --config Release
+
+# Create app directory
+RUN mkdir -p /app /models
+WORKDIR /app
+
+# Copy built binaries
+RUN cp /build/llama.cpp/build/bin/llama-server /app/ && \
+    chmod +x /app/llama-server
+
+# Cleanup build artifacts
+RUN rm -rf /build
+
+# Create startup script
+COPY <<'EOF' /app/start.sh
+#!/bin/bash
+set -e
+
+# Function to start a server
+start_server() {
+    local model_path=$1
+    local port=$2
+    local name=$3
+
+    if [ ! -f "$model_path" ]; then
+        echo "Model not found: $model_path"
+        return 1
+    fi
+
+    echo "Starting $name on port $port..."
+    /app/llama-server \
+        -m "$model_path" \
+        --port "$port" \
+        --host "${LLAMA_SERVER_HOST:-0.0.0.0}" \
+        -c "${LLAMACPP_N_CTX:-2048}" \
+        -t "${LLAMACPP_N_THREADS:-8}" \
+        --jinja \
+        --log-disable &
+
+    echo "$name started on port $port (PID: $!)"
+}
+
+# Construct full model paths
+PHI3_MODEL="${MODELS_BASE_DIR}/${LLAMACPP_CHAT_MODEL_PATH}"
+
+# Start primary model (Phi-3)
+start_server "$PHI3_MODEL" "${LLAMA_SERVER_PORT:-8080}" "Phi-3"
+
+# Start secondary model (Mistral) if configured
+if [ -n "$LLAMACPP_MISTRAL_MODEL_PATH" ]; then
+    MISTRAL_MODEL="${MODELS_BASE_DIR}/${LLAMACPP_MISTRAL_MODEL_PATH}"
+    start_server "$MISTRAL_MODEL" "${LLAMA_SERVER_MISTRAL_PORT:-8081}" "Mistral-7B"
+fi
+
+# Wait for all background processes
+wait
+EOF
+
+RUN chmod +x /app/start.sh
+
+# Expose ports
+EXPOSE 8080 8081
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+# Run startup script
+CMD ["/app/start.sh"]

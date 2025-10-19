@@ -1,7 +1,25 @@
-# Multi-stage build for RAG Agent Application
-FROM python:3.11-slim as builder
+# Multi-stage build for RAG Agent Application with Frontend
 
-# Set working directory
+# Stage 1: Build Frontend
+FROM node:20-alpine as frontend-builder
+
+WORKDIR /frontend
+
+# Copy frontend package files
+COPY frontend/package*.json ./
+
+# Install dependencies
+RUN npm ci
+
+# Copy frontend source
+COPY frontend/ ./
+
+# Build frontend
+RUN npm run build
+
+# Stage 2: Build Python dependencies
+FROM python:3.11-slim as python-builder
+
 WORKDIR /app
 
 # Build argument to determine provider
@@ -28,7 +46,7 @@ RUN if [ "$PROVIDER_TYPE" = "llamacpp" ]; then \
         rm -rf /var/lib/apt/lists/*; \
     fi
 
-# Production stage
+# Stage 3: Production
 FROM python:3.11-slim
 
 # Build argument to determine provider
@@ -36,7 +54,7 @@ ARG PROVIDER_TYPE=ollama
 
 # Create app user
 RUN useradd -m -u 1000 app && \
-    mkdir -p /app/data /app/chroma_db /app/logs /app/models/embeddings /app/models/chat && \
+    mkdir -p /app/data /app/chroma_db /app/logs /app/models/embeddings /app/models/chat /app/static && \
     chown -R app:app /app
 
 # Set working directory
@@ -48,7 +66,10 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy Python packages from builder
-COPY --from=builder /root/.local /home/app/.local
+COPY --from=python-builder /root/.local /home/app/.local
+
+# Copy frontend build from frontend-builder
+COPY --from=frontend-builder /frontend/dist /app/static
 
 # Copy application code
 COPY --chown=app:app . .
@@ -73,5 +94,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Default command (can be overridden)
-CMD ["python", "main.py"]
+# Default command
+CMD ["python", "run_api.py"]

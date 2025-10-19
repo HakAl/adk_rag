@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     git \
     vim \
+    postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
 # Create app user
@@ -65,4 +66,4 @@ VOLUME ["/app/data", "/app/chroma_db", "/app/logs", "/app/models"]
 EXPOSE 8000
 
 # Default command
-CMD ["python", "main.py"]
+CMD ["python", "run_api.py"]

@@ -2,6 +2,29 @@ version: '3.8'
 
 # Development configuration with hot reload
 services:
+  # PostgreSQL Database
+  postgres-dev:
+    image: postgres:16-alpine
+    container_name: rag-postgres-dev
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=rag_agent
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - rag-network-dev
+
+  # Ollama service (optional via profile)
   ollama:
     image: ollama/ollama:latest
     container_name: rag-ollama-dev
@@ -13,7 +36,6 @@ services:
       - OLLAMA_HOST=0.0.0.0
     deploy:
       resources:
-        # Lighter resource limits for development
         limits:
           cpus: '2'
           memory: 4G
@@ -29,6 +51,44 @@ services:
     profiles:
       - ollama
 
+  # llama-server service (optional via profile)
+  llama-server-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.llama
+    container_name: rag-llama-server-dev
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    volumes:
+      - ./models:/models:ro
+    environment:
+      - MODELS_BASE_DIR=/models
+      - LLAMA_SERVER_PORT=8080
+      - LLAMA_SERVER_MISTRAL_PORT=8081
+      - LLAMA_SERVER_HOST=0.0.0.0
+      - LLAMACPP_N_CTX=${LLAMACPP_N_CTX:-2048}
+      - LLAMACPP_N_THREADS=${LLAMACPP_N_THREADS:-8}
+      - LLAMACPP_CHAT_MODEL_PATH=${LLAMACPP_CHAT_MODEL_PATH}
+      - LLAMACPP_MISTRAL_MODEL_PATH=${LLAMACPP_MISTRAL_MODEL_PATH:-}
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+    networks:
+      - rag-network-dev
+    profiles:
+      - llamacpp
+
+  # RAG Agent Backend (Development)
   rag-agent-dev:
     build:
       context: .
@@ -45,14 +105,17 @@ services:
       - ./scripts:/app/scripts
       - ./main.py:/app/main.py
       - ./run_api.py:/app/run_api.py
+      - ./database.py:/app/database.py
       # Persist data
       - ./data:/app/data
       - ./chroma_db:/app/chroma_db
       - ./logs:/app/logs
-      - ./models:/app/models
+      - ./models:/app/models:ro
       - ./.env:/app/.env
     environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres-dev:5432/rag_agent
       - OLLAMA_BASE_URL=http://ollama:11434
+      - LLAMA_SERVER_HOST=llama-server-dev
       - PROVIDER_TYPE=${PROVIDER_TYPE:-ollama}
       - ENVIRONMENT=development
       - DEBUG=true
@@ -60,18 +123,40 @@ services:
       - LOG_LEVEL=DEBUG
       - PYTHONUNBUFFERED=1
     depends_on:
-      ollama:
+      postgres-dev:
         condition: service_healthy
     restart: unless-stopped
     networks:
       - rag-network-dev
-    command: python main.py
-    # Alternative command for API mode:
-    # command: python run_api.py
+    command: python run_api.py
+    stdin_open: true
+    tty: true
+
+  # Frontend (Vite Dev Server)
+  frontend-dev:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: rag-frontend-dev
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - VITE_API_URL=http://rag-agent-dev:8000
+    depends_on:
+      - rag-agent-dev
+    restart: unless-stopped
+    networks:
+      - rag-network-dev
     stdin_open: true
     tty: true
 
 volumes:
+  postgres_data_dev:
+    driver: local
   ollama_data_dev:
     driver: local
 

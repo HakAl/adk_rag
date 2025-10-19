@@ -1,20 +1,28 @@
 # VIBE Agent
 
-A secure, production-ready Python application for Retrieval-Augmented Generation (RAG) using Google's Agent Development Kit (ADK) with local LLM inference via Ollama or llama.cpp.
+An intelligent code assistant that analyzes, generates, and validates code using advanced AI — running locally for privacy or in the cloud for speed.
 
-**Key Features:**
-- 🤖 **Intelligent Routing**: Optional AI-powered request classification for optimized agent selection
-- 📚 **Multi-Format Support**: PDF, CSV, JSONL, Parquet document ingestion
-- 🌐 **Multi-Provider**: Local-first (Ollama/llama.cpp) with optional cloud (Anthropic Claude, Google Gemini)
-- ⚡ **Performance Optimized**: Parallel processing, caching, ChromaDB vector store
-- 🔌 **Multiple Interfaces**: REST API, CLI, and Web UI ready
-- 🐳 **Docker Ready**: Complete containerized deployment
+**Built with Google's Agent Development Kit (ADK)**, featuring intelligent routing, parallel specialist execution, and automatic provider fallback for rock-solid reliability.
+
+## Key Features
+
+- 🤖 **Intelligent Routing**: Automatically selects the right specialist (validator, generator, analyst) for each request
+- ⚡ **Parallel Processing**: Run multiple specialists simultaneously — 3 specialists in ~600ms with cloud providers
+- 🌐 **Flexible Deployment**: 
+  - **Local-only**: Ollama or llama.cpp for complete privacy
+  - **Cloud-only**: Anthropic Claude or Google Gemini for speed
+  - **Hybrid**: Automatic fallback between providers
+- 🔄 **Resilient by Design**: Circuit breakers and retry logic handle API failures gracefully
+- 📚 **Multi-Format RAG**: Ingest PDFs, CSVs, JSONL, Parquet for knowledge-based responses
+- 🎯 **ChromaDB Vector Store**: Fast semantic search with optimized caching
+- 🔌 **Multiple Interfaces**: REST API, CLI tool, or React web UI
+- 🐳 **Docker Ready**: One-command containerized deployment
+
 
 ## Quick Start
 
 ### Prerequisites
 - Python 3.9+ (Python 3.13 recommended)
-- [Ollama](https://ollama.com/) OR llama.cpp
 - (Optional) Docker & Docker Compose
 
 ### Installation
@@ -56,8 +64,25 @@ python chat.py
 python run_api.py
 # Then open http://localhost:8000/docs for Swagger UI
 
-# Web UI (if available)
-# See frontend documentation
+# Web UI
+cd frontend/
+npm run dev
+
+#Docker
+
+# Cloud providers only (no local models)
+docker-compose -f docker-compose.dev.yml up
+
+# With Ollama
+docker-compose -f docker-compose.dev.yml --profile ollama up
+
+# With llama.cpp
+docker-compose -f docker-compose.dev.yml --profile llamacpp up
+
+# Access:
+# - Frontend: http://localhost:3000 (hot reload enabled)
+# - Backend API: http://localhost:8000
+# - PostgreSQL: localhost:5432
 ```
 
 ## 🎯 Intelligent Router
