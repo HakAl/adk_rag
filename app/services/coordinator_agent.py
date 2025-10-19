@@ -3,7 +3,7 @@ Coordinator Agent service with cloud-first specialist delegation using router-ba
 """
 import asyncio
 import uuid
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, AsyncGenerator
 
 from google.genai import types
 
@@ -138,6 +138,82 @@ class CoordinatorAgentService:
             logger.info("Falling back to general assistant due to error")
             return await self._fallback_to_general_assistant(message, session_id)
 
+    async def chat_stream(
+        self,
+        message: str,
+        user_id: str,
+        session_id: str
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        Send a message and stream the response with routing info.
+
+        Args:
+            message: User's message
+            user_id: User identifier
+            session_id: Session identifier
+
+        Yields:
+            Event dictionaries with type and data
+        """
+        logger.info(f"Processing streaming coordinator chat for session {session_id}")
+
+        # Ensure session exists
+        await self._ensure_session_exists(session_id, user_id)
+
+        try:
+            # Route to appropriate specialist(s)
+            routing_decision = self.router_service.route(message)
+            primary_agent = routing_decision["primary_agent"]
+            confidence = routing_decision["confidence"]
+            reasoning = routing_decision.get("reasoning", "")
+
+            logger.info(
+                f"Router classified as '{primary_agent}' (confidence: {confidence:.2f})"
+            )
+
+            # Yield routing info immediately
+            specialist_name = self.specialist_names.get(
+                primary_agent,
+                primary_agent.replace("_", " ").title()
+            )
+
+            yield {
+                "type": "routing",
+                "data": {
+                    "agent": primary_agent,
+                    "agent_name": specialist_name,
+                    "confidence": confidence,
+                    "reasoning": reasoning
+                }
+            }
+
+            # Stream specialist response
+            full_response = ""
+            async for chunk in self._run_streaming_specialist(
+                primary_agent, message, session_id
+            ):
+                full_response += chunk
+                yield {
+                    "type": "content",
+                    "data": chunk
+                }
+
+            # Store in session history
+            await self._add_to_session(session_id, message, full_response)
+
+            # Yield completion event
+            yield {
+                "type": "done",
+                "data": {"message": "Response complete"}
+            }
+
+        except Exception as e:
+            logger.error(f"Error in coordinator streaming: {e}", exc_info=True)
+            yield {
+                "type": "error",
+                "data": {"message": str(e)}
+            }
+
     async def _ensure_session_exists(self, session_id: str, user_id: str) -> None:
         """
         Ensure session exists in database, create if missing.
@@ -198,6 +274,45 @@ class CoordinatorAgentService:
         except Exception as e:
             logger.error(f"Specialist execution failed: {e}")
             return await self._fallback_to_general_assistant(message, session_id)
+
+    async def _run_streaming_specialist(
+        self,
+        agent_type: str,
+        message: str,
+        session_id: str
+    ) -> AsyncGenerator[str, None]:
+        """
+        Run a single specialist with streaming response.
+
+        Args:
+            agent_type: Specialist category
+            message: User's message
+            session_id: Session identifier
+
+        Yields:
+            Text chunks from specialist
+        """
+        logger.info(f"Streaming from specialist category: {agent_type}")
+
+        try:
+            # Get context for RAG queries
+            context = ""
+            if agent_type == "rag_query":
+                context = await self._get_rag_context(message)
+
+            # Execute with streaming and automatic fallback
+            async for chunk in self.specialist_manager.execute_stream_with_fallback(
+                specialist_type=agent_type,
+                message=message,
+                context=context
+            ):
+                yield chunk
+
+        except Exception as e:
+            logger.error(f"Streaming specialist execution failed: {e}")
+            # Fallback to non-streaming general assistant
+            response = await self._fallback_to_general_assistant(message, session_id)
+            yield response
 
     async def _run_parallel_specialists(
         self,

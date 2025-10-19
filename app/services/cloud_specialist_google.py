@@ -2,7 +2,7 @@
 Cloud specialist service using Google's Gemini API.
 """
 import asyncio
-from typing import Dict, Any
+from typing import Dict, Any, AsyncGenerator
 import google.generativeai as genai
 from google.api_core import exceptions
 
@@ -128,6 +128,44 @@ Be helpful and engaging."""
                 logger.error(f"[Google {self.specialist_type}] API error: {e}")
                 raise
 
+    async def execute_stream(
+            self,
+            message: str,
+            context: str = "",
+            retries: int = 3
+    ) -> AsyncGenerator[str, None]:
+        """
+        Execute specialist task with streaming response.
+
+        Args:
+            message: User's message/request
+            context: Additional context (e.g., RAG results)
+            retries: Number of retry attempts
+
+        Yields:
+            Text chunks as they arrive from Gemini
+        """
+        for attempt in range(retries):
+            try:
+                async for chunk in self._call_gemini_stream(message, context):
+                    yield chunk
+                return  # Success, exit retry loop
+
+            except exceptions.ResourceExhausted as e:
+                logger.warning(
+                    f"[Google {self.specialist_type}] Rate limit hit (attempt {attempt + 1}/{retries}): {e}"
+                )
+                if attempt < retries - 1:
+                    wait_time = 2 ** attempt
+                    await asyncio.sleep(wait_time)
+                    continue
+                else:
+                    raise
+
+            except Exception as e:
+                logger.error(f"[Google {self.specialist_type}] API error: {e}")
+                raise
+
     async def _call_gemini(self, message: str, context: str = "") -> str:
         """
         Make API call to Google Gemini.
@@ -152,6 +190,40 @@ Be helpful and engaging."""
         )
 
         return response.text.strip()
+
+    async def _call_gemini_stream(
+            self,
+            message: str,
+            context: str = ""
+    ) -> AsyncGenerator[str, None]:
+        """
+        Make streaming API call to Google Gemini.
+
+        Args:
+            message: User's message
+            context: Additional context
+
+        Yields:
+            Text chunks as they arrive
+        """
+        # Build the user message
+        user_message = message
+        if context:
+            user_message = f"Context:\n{context}\n\nUser Request:\n{message}"
+
+        # Run streaming in executor
+        loop = asyncio.get_event_loop()
+
+        # Generate streaming response
+        response_stream = await loop.run_in_executor(
+            None,
+            lambda: self.model.generate_content(user_message, stream=True)
+        )
+
+        # Iterate through chunks
+        for chunk in response_stream:
+            if chunk.text:
+                yield chunk.text
 
     def get_specialist_name(self) -> str:
         """Get human-readable specialist name."""

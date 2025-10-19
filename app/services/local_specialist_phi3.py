@@ -2,7 +2,7 @@
 Local specialist service using Phi-3 via llama.cpp.
 """
 import asyncio
-from typing import Optional
+from typing import Optional, AsyncGenerator
 from llama_cpp import Llama
 
 from config import settings, logger
@@ -121,6 +121,36 @@ You are a helpful assistant. Provide clear, friendly, and professional responses
             logger.error(f"[Local Phi-3 {self.specialist_type}] Error: {e}")
             raise
 
+    async def execute_stream(
+            self,
+            message: str,
+            context: str = ""
+    ) -> AsyncGenerator[str, None]:
+        """
+        Execute specialist task with streaming response.
+
+        Args:
+            message: User's message/request
+            context: Additional context (e.g., RAG results)
+
+        Yields:
+            Text chunks as they arrive from Phi-3
+        """
+        try:
+            # Build prompt with context if provided
+            if context and "{context}" in self.prompt_template:
+                prompt = self.prompt_template.format(message=message, context=context)
+            else:
+                prompt = self.prompt_template.format(message=message)
+
+            # Stream inference
+            async for chunk in self._generate_stream(prompt):
+                yield chunk
+
+        except Exception as e:
+            logger.error(f"[Local Phi-3 {self.specialist_type}] Error: {e}")
+            raise
+
     def _generate(self, prompt: str) -> str:
         """Generate response using Phi-3."""
         response = self.model(
@@ -131,6 +161,29 @@ You are a helpful assistant. Provide clear, friendly, and professional responses
         )
 
         return response['choices'][0]['text'].strip()
+
+    async def _generate_stream(self, prompt: str) -> AsyncGenerator[str, None]:
+        """Generate streaming response using Phi-3."""
+        loop = asyncio.get_event_loop()
+
+        # Create generator in executor
+        def create_stream():
+            return self.model(
+                prompt,
+                max_tokens=settings.llamacpp_max_tokens,
+                temperature=settings.llamacpp_temperature,
+                stop=["<|end|>", "<|user|>", "<|system|>"],
+                stream=True
+            )
+
+        stream = await loop.run_in_executor(None, create_stream)
+
+        # Yield chunks as they arrive
+        for chunk in stream:
+            if 'choices' in chunk and len(chunk['choices']) > 0:
+                text = chunk['choices'][0].get('text', '')
+                if text:
+                    yield text
 
     def get_specialist_name(self) -> str:
         """Get human-readable specialist name."""

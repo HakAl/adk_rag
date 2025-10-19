@@ -1,7 +1,7 @@
 """
 Specialist manager with intelligent fallback and circuit breaker.
 """
-from typing import Optional, Union
+from typing import Optional, Union, AsyncGenerator
 from pathlib import Path
 
 from config import settings, logger
@@ -186,6 +186,76 @@ class SpecialistManager:
                 raise RuntimeError(f"All specialists failed for {specialist_type}")
 
         raise RuntimeError("No specialists available")
+
+    async def execute_stream_with_fallback(
+            self,
+            specialist_type: str,
+            message: str,
+            context: str = ""
+    ) -> AsyncGenerator[str, None]:
+        """
+        Execute specialist task with streaming and automatic fallback.
+
+        Args:
+            specialist_type: Type of specialist
+            message: User's message
+            context: Additional context
+
+        Yields:
+            Text chunks as they arrive from specialist
+
+        Raises:
+            RuntimeError: If all specialists fail
+        """
+        # Try Anthropic
+        if self.has_anthropic and not self.anthropic_breaker.is_open():
+            try:
+                specialist = CloudSpecialistAnthropicService(specialist_type)
+                async for chunk in specialist.execute_stream(message, context):
+                    yield chunk
+                self.anthropic_breaker.record_success()
+                return  # Success, exit
+            except Exception as e:
+                logger.warning(f"Anthropic streaming failed: {e}")
+                self.anthropic_breaker.record_failure()
+
+        # Try Google
+        if self.has_google and not self.google_breaker.is_open():
+            try:
+                specialist = CloudSpecialistGoogleService(specialist_type)
+                async for chunk in specialist.execute_stream(message, context):
+                    yield chunk
+                self.google_breaker.record_success()
+                return  # Success, exit
+            except Exception as e:
+                logger.warning(f"Google streaming failed: {e}")
+                self.google_breaker.record_failure()
+
+        # Try local
+        if self.has_local:
+            try:
+                # Load shared model if not already loaded
+                if self._phi3_model is None:
+                    logger.info("Loading shared Phi-3 model for streaming fallback")
+                    from llama_cpp import Llama
+                    self._phi3_model = Llama(
+                        model_path=settings.llamacpp_chat_model_path,
+                        n_ctx=settings.llamacpp_n_ctx,
+                        n_batch=settings.llamacpp_n_batch,
+                        n_threads=settings.llamacpp_n_threads,
+                        temperature=settings.llamacpp_temperature,
+                        verbose=settings.debug
+                    )
+
+                specialist = LocalSpecialistPhi3Service(specialist_type, self._phi3_model)
+                async for chunk in specialist.execute_stream(message, context):
+                    yield chunk
+                return  # Success, exit
+            except Exception as e:
+                logger.error(f"Local streaming failed: {e}")
+                raise RuntimeError(f"All specialists failed for {specialist_type}")
+
+        raise RuntimeError("No specialists available for streaming")
 
     def get_status(self) -> dict:
         """Get status of all providers."""

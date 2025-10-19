@@ -3,7 +3,7 @@ FastAPI application for RAG Agent with input sanitization and rate limiting.
 """
 from fastapi import FastAPI, HTTPException, Depends, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from contextlib import asynccontextmanager
 from typing import Optional
 from pydantic import ValidationError
@@ -23,7 +23,7 @@ from app.api.models import (
 from app.utils.input_sanitizer import InputSanitizationError
 from app.db.database import init_db, close_db
 from app.db.session_service import PostgreSQLSessionService
-
+import json
 
 # Global app instance
 rag_app: Optional[RAGAgentApp] = None
@@ -186,8 +186,8 @@ async def get_session(session_id: str):
     dependencies=[Depends(rate_limit_dependency)]
 )
 async def create_session(
-    request: SessionCreateRequest,
-    app: RAGAgentApp = Depends(get_app)
+        request: SessionCreateRequest,
+        app: RAGAgentApp = Depends(get_app)
 ):
     """Create a new chat session."""
     try:
@@ -207,8 +207,8 @@ async def create_session(
     dependencies=[Depends(rate_limit_dependency)]
 )
 async def create_coordinator_session(
-    request: SessionCreateRequest,
-    app: RAGAgentApp = Depends(get_app)
+        request: SessionCreateRequest,
+        app: RAGAgentApp = Depends(get_app)
 ):
     """Create a new chat session for coordinator agent."""
     try:
@@ -228,8 +228,8 @@ async def create_coordinator_session(
     dependencies=[Depends(rate_limit_dependency)]
 )
 async def chat(
-    request: ChatRequest,
-    app: RAGAgentApp = Depends(get_app)
+        request: ChatRequest,
+        app: RAGAgentApp = Depends(get_app)
 ):
     """
     Send a chat message and get response.
@@ -279,8 +279,8 @@ async def chat(
     dependencies=[Depends(rate_limit_dependency)]
 )
 async def chat_extended(
-    request: ChatRequest,
-    app: RAGAgentApp = Depends(get_app)
+        request: ChatRequest,
+        app: RAGAgentApp = Depends(get_app)
 ):
     """
     Send a chat message and get response with routing metadata.
@@ -335,8 +335,8 @@ async def chat_extended(
     dependencies=[Depends(rate_limit_dependency)]
 )
 async def chat_coordinator(
-    request: ChatRequest,
-    app: RAGAgentApp = Depends(get_app)
+        request: ChatRequest,
+        app: RAGAgentApp = Depends(get_app)
 ):
     """
     Send a chat message and get response via coordinator with specialist delegation.
@@ -379,3 +379,72 @@ async def chat_coordinator(
     except Exception as e:
         logger.error(f"Error in chat/coordinator: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post(
+    "/chat/coordinator/stream",
+    dependencies=[Depends(rate_limit_dependency)]
+)
+async def chat_coordinator_stream(
+        request: ChatRequest,
+        app: RAGAgentApp = Depends(get_app)
+):
+    """
+    Send a chat message and receive streaming response with routing info.
+
+    This endpoint streams the response in real-time using Server-Sent Events (SSE).
+
+    Event types:
+    - routing: Initial routing decision with agent type and confidence
+    - content: Chunks of the actual response as they're generated
+    - done: Signals completion of the response
+    - error: Error information if something goes wrong
+
+    Example events:
+    data: {"type": "routing", "data": {"agent": "code_generation", "confidence": 0.95}}
+    data: {"type": "content", "data": "Here is the code..."}
+    data: {"type": "done", "data": {"message": "Response complete"}}
+
+    Input is automatically validated and sanitized by Pydantic validators.
+    """
+
+    async def event_generator():
+        try:
+            logger.info(
+                f"Streaming coordinator chat: user={request.user_id}, "
+                f"session={request.session_id[:8]}..., "
+                f"message_length={len(request.message)}"
+            )
+
+            async for event in app.coordinator_chat_stream(
+                    message=request.message,
+                    user_id=request.user_id,
+                    session_id=request.session_id
+            ):
+                # Format as SSE (Server-Sent Events)
+                yield f"data: {json.dumps(event)}\n\n"
+
+        except InputSanitizationError as e:
+            logger.warning(f"Input sanitization failed: {e}")
+            error_event = {
+                "type": "error",
+                "data": {"message": f"Input validation failed: {str(e)}"}
+            }
+            yield f"data: {json.dumps(error_event)}\n\n"
+
+        except Exception as e:
+            logger.error(f"Error in streaming chat: {e}", exc_info=True)
+            error_event = {
+                "type": "error",
+                "data": {"message": str(e)}
+            }
+            yield f"data: {json.dumps(error_event)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",  # Disable nginx buffering
+        }
+    )

@@ -1,7 +1,7 @@
 """
 Main application class integrating all services with optional routing and coordination.
 """
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, AsyncGenerator
 
 from config import settings, logger
 from app.services.vector_store import VectorStoreService
@@ -173,6 +173,41 @@ class RAGAgentApp:
 
         return response
 
+    async def coordinator_chat_stream(
+            self,
+            message: str,
+            user_id: str,
+            session_id: str
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        Process a chat message using coordinator with streaming response.
+
+        Args:
+            message: User's message
+            user_id: User identifier
+            session_id: Session identifier
+
+        Yields:
+            Event dictionaries with routing info and response chunks
+        """
+        if not self.coordinator_agent:
+            logger.warning("Coordinator agent not available for streaming")
+            # Yield error event
+            yield {
+                "type": "error",
+                "data": {"message": "Coordinator agent not available"}
+            }
+            return
+
+        logger.info(f"Processing streaming coordinator chat for session {session_id}")
+
+        async for event in self.coordinator_agent.chat_stream(
+                message=message,
+                user_id=user_id,
+                session_id=session_id
+        ):
+            yield event
+            
     def get_last_routing(self) -> Optional[Dict[str, Any]]:
         """
         Get routing info from the last chat call.
