@@ -105,6 +105,9 @@ class CoordinatorAgentService:
         """
         logger.info(f"Processing coordinator chat for session {session_id}")
 
+        # FIXED: Ensure session exists before processing
+        await self._ensure_session_exists(session_id, user_id)
+
         try:
             # Route to appropriate specialist(s)
             routing_decision = self.router_service.route(message)
@@ -134,6 +137,26 @@ class CoordinatorAgentService:
             logger.error(f"Error in coordinator chat: {e}", exc_info=True)
             logger.info("Falling back to general assistant due to error")
             return await self._fallback_to_general_assistant(message, session_id)
+
+    async def _ensure_session_exists(self, session_id: str, user_id: str) -> None:
+        """
+        Ensure session exists in database, create if missing.
+
+        Args:
+            session_id: Session identifier
+            user_id: User identifier
+        """
+        exists = await self.session_service.session_exists(session_id)
+        if not exists:
+            logger.warning(
+                f"Session {session_id} not found in database, auto-creating"
+            )
+            await self.session_service.create_session(
+                app_name="coordinator",
+                user_id=user_id,
+                session_id=session_id,
+                agent_type="coordinator"
+            )
 
     async def _run_single_specialist(
         self,

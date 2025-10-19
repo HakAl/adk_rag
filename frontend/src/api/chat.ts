@@ -23,7 +23,8 @@ export interface ChatResponse {
 
 export const chatApi = {
   createSession: async (userId: string = 'web_user'): Promise<SessionResponse> => {
-    const response = await fetch('/sessions', {
+    // FIXED: Use coordinator endpoint to match backend flow
+    const response = await fetch('/sessions/coordinator', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ user_id: userId }),

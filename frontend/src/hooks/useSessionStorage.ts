@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Message } from '../api/chat';
+import { chatApi } from '../api/chat';
 
 export interface SessionMetadata {
   sessionId: string;
@@ -72,9 +73,12 @@ export const useSessionStorage = () => {
     setSessions(sessionStorage.getSessions());
   }, []);
 
-  const createSession = useCallback((sessionId: string): SessionMetadata => {
+  const createSession = useCallback(async (): Promise<SessionMetadata> => {
+    // FIXED: Call backend API to create session in database first
+    const response = await chatApi.createSession('web_user');
+
     const newSession: SessionMetadata = {
-      sessionId,
+      sessionId: response.session_id, // Use backend-generated session ID
       title: 'New Chat',
       createdAt: Date.now(),
       lastMessageAt: Date.now(),

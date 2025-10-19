@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useSession, useChat } from '../hooks/useChat';
+import { useChat } from '../hooks/useChat';
 import { useSessionStorage, sessionStorage } from '../hooks/useSessionStorage';
 import { Message } from '../api/chat';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -18,10 +18,10 @@ export const Chat = () => {
   const [easterEggMessages, setEasterEggMessages] = useState<Message[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [currentSessionId, setCurrentSessionId] = useState<string>('');
+  const [isInitializing, setIsInitializing] = useState(true);
 
   const queryClient = useQueryClient();
-  const { data: session, isLoading: sessionLoading, error: sessionError, refetch: refetchSession } = useSession(userId);
-  const mutation = useChat(currentSessionId || session?.session_id, userId);
+  const mutation = useChat(currentSessionId, userId);
   const { checkEasterEgg } = useEasterEggs();
   const {
     sessions,
@@ -31,28 +31,35 @@ export const Chat = () => {
     refreshSessions
   } = useSessionStorage();
 
-  // Initialize session from localStorage or create new one
+  // FIXED: Initialize session from localStorage or create new one
   useEffect(() => {
-    if (sessionLoading) return;
+    const initializeSession = async () => {
+      const storedSessionId = sessionStorage.getActiveSessionId();
+      const storedSessions = sessionStorage.getSessions();
 
-    const storedSessionId = sessionStorage.getActiveSessionId();
-    const storedSessions = sessionStorage.getSessions();
+      if (storedSessionId && storedSessions.find(s => s.sessionId === storedSessionId)) {
+        // Load existing session from localStorage
+        setCurrentSessionId(storedSessionId);
+        const storedMessages = sessionStorage.getMessages(storedSessionId);
+        // Sort by timestamp to ensure chronological order (oldest first)
+        const sortedMessages = [...storedMessages].sort((a, b) => a.timestamp - b.timestamp);
+        queryClient.setQueryData<Message[]>(['messages', storedSessionId], sortedMessages);
+      } else {
+        // No valid session - create new one via backend API
+        try {
+          const newSession = await createSession();
+          setCurrentSessionId(newSession.sessionId);
+          sessionStorage.setActiveSessionId(newSession.sessionId);
+        } catch (error) {
+          console.error('Failed to create session:', error);
+        }
+      }
 
-    if (storedSessionId && storedSessions.find(s => s.sessionId === storedSessionId)) {
-      // Load existing session from localStorage
-      setCurrentSessionId(storedSessionId);
-      const storedMessages = sessionStorage.getMessages(storedSessionId);
-      // Sort by timestamp to ensure chronological order (oldest first)
-      const sortedMessages = [...storedMessages].sort((a, b) => a.timestamp - b.timestamp);
-      queryClient.setQueryData<Message[]>(['messages', storedSessionId], sortedMessages);
-    } else if (session?.session_id) {
-      // Use backend session and register it in localStorage
-      const newSessionId = session.session_id;
-      setCurrentSessionId(newSessionId);
-      createSession(newSessionId);
-      sessionStorage.setActiveSessionId(newSessionId);
-    }
-  }, [session, sessionLoading, createSession, queryClient]);
+      setIsInitializing(false);
+    };
+
+    initializeSession();
+  }, [createSession, queryClient]);
 
   const backendMessages = queryClient.getQueryData<Message[]>(['messages', currentSessionId]) || [];
 
@@ -79,17 +86,17 @@ export const Chat = () => {
     }
   }, [messages.length, mutation.isPending]);
 
+  // FIXED: Create new session via backend API
   const handleNewSession = async () => {
-    // Create new backend session
-    const { data: newSession } = await refetchSession();
-
-    if (newSession?.session_id) {
-      setCurrentSessionId(newSession.session_id);
-      createSession(newSession.session_id);
-      sessionStorage.setActiveSessionId(newSession.session_id);
-      queryClient.setQueryData<Message[]>(['messages', newSession.session_id], []);
+    try {
+      const newSession = await createSession();
+      setCurrentSessionId(newSession.sessionId);
+      sessionStorage.setActiveSessionId(newSession.sessionId);
+      queryClient.setQueryData<Message[]>(['messages', newSession.sessionId], []);
       setEasterEggMessages([]);
       setSidebarOpen(false);
+    } catch (error) {
+      console.error('Failed to create new session:', error);
     }
   };
 
@@ -159,7 +166,8 @@ export const Chat = () => {
     mutation.mutate(input);
   };
 
-  if (sessionLoading) {
+  // FIXED: Show loading state during initialization
+  if (isInitializing) {
     return (
       <div className="flex h-screen items-center justify-center p-4">
         <Card className="glass-card">
@@ -168,20 +176,6 @@ export const Chat = () => {
               <Loader2 className="h-4 w-4 animate-spin text-primary" aria-hidden="true" />
               <p className="text-foreground text-sm sm:text-base">Initializing chat session...</p>
             </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  if (sessionError) {
-    return (
-      <div className="flex h-screen items-center justify-center p-4">
-        <Card className="glass-card border-red-500/50 bg-red-950/20">
-          <CardContent className="p-4 sm:p-6">
-            <p className="text-red-400 text-sm sm:text-base" role="alert">
-              Failed to create session: {sessionError.message}
-            </p>
           </CardContent>
         </Card>
       </div>

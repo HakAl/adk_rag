@@ -240,6 +240,9 @@ class ADKAgentService:
         """
         logger.info(f"Processing chat message for session {session_id}")
 
+        # FIXED: Ensure session exists before processing
+        await self._ensure_session_exists(session_id, user_id)
+
         # Use async generator
         result_generator = self.runner.run_async(
             user_id=user_id,
@@ -273,3 +276,23 @@ class ADKAgentService:
             return "I apologize, but I couldn't generate a proper response. Please try again."
 
         return final_response
+
+    async def _ensure_session_exists(self, session_id: str, user_id: str) -> None:
+        """
+        Ensure session exists in database, create if missing.
+
+        Args:
+            session_id: Session identifier
+            user_id: User identifier
+        """
+        exists = await self.session_service.session_exists(session_id)
+        if not exists:
+            logger.warning(
+                f"Session {session_id} not found in database, auto-creating"
+            )
+            await self.session_service.create_session(
+                app_name=settings.app_name,
+                user_id=user_id,
+                session_id=session_id,
+                agent_type="adk"
+            )
