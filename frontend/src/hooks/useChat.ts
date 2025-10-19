@@ -66,5 +66,35 @@ export const useChat = (sessionId: string | undefined, userId: string) => {
         return updated;
       });
     },
+    onError: (error, message) => {
+      // Update the optimistic message with an error message
+      queryClient.setQueryData<Message[]>(['messages', sessionId], (old = []) => {
+        // Find the most recent optimistic message for this question
+        const optimisticIndex = [...old].reverse().findIndex(msg =>
+          msg.question === message && msg.answer === ''
+        );
+
+        // Convert reversed index back to normal index
+        const actualIndex = optimisticIndex !== -1 ? old.length - 1 - optimisticIndex : -1;
+
+        if (actualIndex !== -1) {
+          // Update the existing optimistic message with error
+          const updated = [...old];
+          updated[actualIndex] = {
+            ...updated[actualIndex],
+            answer: '❌ Failed to get response. Please try again.',
+          };
+
+          // Save to localStorage
+          if (sessionId) {
+            sessionStorage.saveMessages(sessionId, updated);
+          }
+
+          return updated;
+        }
+
+        return old;
+      });
+    },
   });
 };

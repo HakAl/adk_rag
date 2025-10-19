@@ -142,6 +142,18 @@ export const Chat = () => {
     // Clear easter eggs when asking a real question
     setEasterEggMessages([]);
 
+    // Add optimistic message immediately
+    const optimisticMessage: Message = {
+      id: `optimistic-${Date.now()}`,
+      question: input,
+      answer: '',
+      timestamp: Date.now(),
+    };
+
+    queryClient.setQueryData<Message[]>(['messages', currentSessionId], (old = []) => {
+      return [...old, optimisticMessage];
+    });
+
     // Let the mutation handle adding the message once the API responds
     // The "Thinking..." indicator will show during the loading state
     mutation.mutate(input);

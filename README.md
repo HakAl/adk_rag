@@ -3,7 +3,6 @@
 A secure, production-ready Python application for Retrieval-Augmented Generation (RAG) using Google's Agent Development Kit (ADK) with local LLM inference via Ollama or llama.cpp.
 
 **Key Features:**
-- 🔒 **Security-First**: Multi-layer input sanitization, rate limiting, prompt injection detection
 - 🤖 **Intelligent Routing**: Optional AI-powered request classification for optimized agent selection
 - 📚 **Multi-Format Support**: PDF, CSV, JSONL, Parquet document ingestion
 - 🌐 **Multi-Provider**: Local-first (Ollama/llama.cpp) with optional cloud (Anthropic Claude, Google Gemini)
@@ -61,26 +60,9 @@ python run_api.py
 # See frontend documentation
 ```
 
-## 🔒 Security Features
-
-**NEW in this version:**
-- ✅ **Input Sanitization**: Multi-layer validation at frontend, CLI, API, and model layers
-- ✅ **Prompt Injection Detection**: Blocks LLM manipulation attempts
-- ✅ **SQL Injection Protection**: Detects and blocks SQL injection patterns
-- ✅ **Command Injection Defense**: Prevents shell command execution attempts
-- ✅ **Rate Limiting**: Prevents API abuse (60 requests/minute per client)
-- ✅ **Path Traversal Protection**: Blocks directory traversal attacks
-- ✅ **Length Validation**: Enforces reasonable input limits (8000 chars)
-- ✅ **Security Logging**: All validation events logged for monitoring
-
-## 🎯 Intelligent Router (Optional)
+## 🎯 Intelligent Router
 
 Enable smart request routing based on query type:
-
-```bash
-# In .env
-ROUTER_MODEL_PATH=./models/your-router-model.gguf
-```
 
 The router automatically classifies requests into:
 - `code_validation` - Syntax checking
@@ -451,36 +433,11 @@ grep "sanitization failed" logs/app.log
 # Or disable detection temporarily (NOT for production)
 ```
 
-## 🚀 Production Deployment
-
-### Security Checklist
-- [ ] Set `ENVIRONMENT=production`
-- [ ] Set `DEBUG=false`
-- [ ] Configure proper CORS origins (not `*`)
-- [ ] Use HTTPS with SSL certificates
-- [ ] Set strong rate limits
-- [ ] Enable security logging
-- [ ] Regular security audits
-- [ ] Keep dependencies updated
-
-### Performance Optimization
-- [ ] Use production ASGI server (gunicorn + uvicorn)
-- [ ] Configure ChromaDB for production
-- [ ] Set appropriate worker counts
-- [ ] Enable caching where applicable
-- [ ] Monitor resource usage
-- [ ] Set up log rotation
-
-### Scaling Considerations
-- [ ] Use Redis for distributed rate limiting
-- [ ] External vector store (Pinecone, Weaviate)
-- [ ] Load balancer for multiple API instances
-- [ ] Separate ingestion and query services
-- [ ] Database for session management
 
 ## 📖 Additional Documentation
 
 - **[Getting Started Guide](docs/GETTING_STARTED.md)** - Detailed setup instructions
+- **[Routing Setup](docs/COORDINATION.md)** - Detailed routing instructions
 - **[Security Guide](docs/SECURITY.md)** - Security best practices
 - **[Docker Deployment](docs/DOCKER.md)** - Container deployment
 - **[REST API Reference](docs/API.md)** - Complete API documentation
@@ -489,14 +446,6 @@ grep "sanitization failed" logs/app.log
 - **[Router Configuration](docs/ROUTER.md)** - Intelligent routing setup
 - **[Architecture](docs/ARCHITECTURE.md)** - System design
 - **[Development](docs/DEVELOPMENT.md)** - Contributing guide
-
-## 🤝 Contributing
-
-We welcome contributions! Please see [DEVELOPMENT.md](docs/DEVELOPMENT.md) for:
-- Code style guidelines
-- Testing requirements
-- Pull request process
-- Development setup
 
 ## 📄 License
 
@@ -513,11 +462,7 @@ We welcome contributions! Please see [DEVELOPMENT.md](docs/DEVELOPMENT.md) for:
 ## 📞 Support
 
 - **Documentation**: Check the `docs/` directory
-- **Issues**: [Open a GitHub issue](https://github.com/your-repo/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/your-repo/discussions)
 
 ---
-
-**Version 2.0.0** - Now with enterprise-grade security and intelligent routing! 🎉
 
 Need help getting started? Begin with the [Getting Started Guide](docs/GETTING_STARTED.md) or jump right in with `python chat.py`!
