@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { ScrollArea } from './ui/scroll-area';
 import { Loader2, Menu, AlertCircle } from 'lucide-react';
 import { Button } from './ui/button';
-import { ChatMessage } from './ChatMessage';
+import { ChatMessage } from './ChatMessage/index';
 import { StreamingMessage } from './StreamingMessage';
 import { ChatInput } from './ChatInput';
 import { SessionSidebar } from './SessionSidebar';
