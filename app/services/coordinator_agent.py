@@ -198,14 +198,14 @@ class CoordinatorAgentService:
                     "data": chunk
                 }
 
-            # Store in session history
-            await self._add_to_session(session_id, message, full_response)
-
-            # Yield completion event
+            # Yield completion event BEFORE database write
             yield {
                 "type": "done",
                 "data": {"message": "Response complete"}
             }
+
+            # Store in session history AFTER streaming completes
+            await self._add_to_session(session_id, message, full_response)
 
         except Exception as e:
             logger.error(f"Error in coordinator streaming: {e}", exc_info=True)

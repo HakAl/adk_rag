@@ -423,7 +423,12 @@ async def chat_coordinator_stream(
                     session_id=request.session_id
             ):
                 # Format as SSE (Server-Sent Events)
-                yield f"data: {json.dumps(event)}\n\n"
+                sse_data = f"data: {json.dumps(event)}\n\n"
+                yield sse_data
+
+                # CRITICAL: Add tiny delay to prevent buffering
+                # This forces the response to flush immediately
+                await asyncio.sleep(0.001)
 
         except InputSanitizationError as e:
             logger.warning(f"Input sanitization failed: {e}")
