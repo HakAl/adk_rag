@@ -1,6 +1,8 @@
-export { ChatMessage } from './ChatMessage';
-export { UserMessageBubble } from './UserMessageBubble';
-export { BotMessageBubble } from './BotMessageBubble';
 export { Avatar } from './Avatar';
-export { MessageTimestamp } from './MessageTimestamp';
+export { BotMessageBubble } from './BotMessageBubble';
+export { ChatMessage } from './ChatMessage';
 export { CopyButton } from './CopyButton';
+export { MessageTimestamp } from './MessageTimestamp';
+export { UserMessageBubble } from './UserMessageBubble';
+export { RoutingBadge } from './RoutingBadge';
+export { StreamingContent } from './StreamingContent';

@@ -1,8 +1,27 @@
 import { Components } from 'react-markdown';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 export const markdownComponents: Components = {
   p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
   code: ({ className, children }) => {
+    // Check if this is a code block (has language class) vs inline code
+    const match = /language-(\w+)/.exec(className || '');
+
+    if (match) {
+      // Code block with syntax highlighting
+      return (
+        <SyntaxHighlighter
+          PreTag="div"
+          language={match[1]}
+          style={vscDarkPlus}
+        >
+          {String(children).replace(/\n$/, '')}
+        </SyntaxHighlighter>
+      );
+    }
+
+    // Inline code
     const isInline = !className;
     return isInline ? (
       <code className="bg-primary/20 text-foreground px-1.5 py-0.5 rounded text-sm font-mono border border-primary/30">
