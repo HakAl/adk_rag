@@ -1,4 +1,4 @@
-import { Card } from '../ui/card';
+import { SlideInPanel } from '../common/SlideInPanel';
 import { SettingsPanelHeader } from './SettingsPanelHeader';
 import { SettingsPanelFooter } from './SettingsPanelFooter';
 import { ThemeSection } from './sections/ThemeSection';
@@ -31,49 +31,29 @@ export const SettingsPanel = ({
   health,
 }: SettingsPanelProps) => {
   return (
-    <>
-      {/* Mobile overlay */}
-      {isOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={onClose}
-          aria-hidden="true"
+    <SlideInPanel
+      isOpen={isOpen}
+      onClose={onClose}
+      side="right"
+    >
+      <SettingsPanelHeader onClose={onClose} />
+
+      {/* Settings Content */}
+      <div className="flex-1 overflow-y-auto">
+        <ThemeSection
+          currentTheme={settings.theme}
+          onThemeChange={onThemeChange}
         />
-      )}
 
-      {/* Settings Panel - Slides in from right */}
-      <aside
-        className={`
-          fixed lg:absolute inset-y-0 right-0 z-50
-          w-full sm:w-80 lg:w-96
-          transform transition-transform duration-200 ease-in-out
-          ${isOpen ? 'translate-x-0' : 'translate-x-full'}
-        `}
-        aria-label="Settings panel"
-        role="dialog"
-        aria-modal="true"
-      >
-        <Card className="h-full flex flex-col glass-card border-l">
-          <SettingsPanelHeader onClose={onClose} />
+        <FontSizeSection
+          currentFontSize={settings.fontSize}
+          onFontSizeChange={onFontSizeChange}
+        />
 
-          {/* Settings Content */}
-          <div className="flex-1 overflow-y-auto">
-            <ThemeSection
-              currentTheme={settings.theme}
-              onThemeChange={onThemeChange}
-            />
+        <AboutSection health={health} />
+      </div>
 
-            <FontSizeSection
-              currentFontSize={settings.fontSize}
-              onFontSizeChange={onFontSizeChange}
-            />
-
-            <AboutSection health={health} />
-          </div>
-
-          <SettingsPanelFooter onReset={onReset} />
-        </Card>
-      </aside>
-    </>
+      <SettingsPanelFooter onReset={onReset} />
+    </SlideInPanel>
   );
 };
