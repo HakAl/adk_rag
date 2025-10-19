@@ -1,27 +1,45 @@
-import { useEffect, useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { useChatStream } from '../hooks/useChatStream';
-import { useSessionStorage, sessionStorage } from '../hooks/useSessionStorage';
-import { Message } from '../api/chat';
+import { useSessionManager } from '../hooks/useSessionManager';
+import { useMessageManager } from '../hooks/useMessageManager';
+import { useAutoScroll } from '../hooks/useAutoScroll';
+import { useMessagePersistence } from '../hooks/useMessagePersistence';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { ScrollArea } from './ui/scroll-area';
-import { Loader2, Menu } from 'lucide-react';
+import { Loader2, Menu, AlertCircle } from 'lucide-react';
 import { Button } from './ui/button';
 import { ChatMessage } from './ChatMessage';
 import { StreamingMessage } from './StreamingMessage';
 import { ChatInput } from './ChatInput';
 import { SessionSidebar } from './SessionSidebar';
-import { useEasterEggs } from '../hooks/useEasterEggs';
 
 export const Chat = () => {
   const userId = 'web_user';
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [easterEggMessages, setEasterEggMessages] = useState<Message[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [currentSessionId, setCurrentSessionId] = useState<string>('');
-  const [isInitializing, setIsInitializing] = useState(true);
 
-  const queryClient = useQueryClient();
+  // Session management
+  const {
+    currentSessionId,
+    isInitializing,
+    initError,
+    sessions,
+    createNewSession,
+    switchSession,
+    removeSession,
+    retryInitialization,
+    updateSessionMetadata,
+  } = useSessionManager();
+
+  // Message management
+  const {
+    messages,
+    easterEggMessages,
+    addOptimisticMessage,
+    clearEasterEggs,
+    handleEasterEgg,
+  } = useMessageManager(currentSessionId);
+
+  // Chat streaming
   const {
     sendMessage,
     isStreaming,
@@ -30,150 +48,91 @@ export const Chat = () => {
     streamingContent
   } = useChatStream(currentSessionId, userId);
 
-  const { checkEasterEgg } = useEasterEggs();
-  const {
-    sessions,
-    createSession,
+  // Auto-scroll on message changes
+  const scrollRef = useAutoScroll({
+    dependencies: [messages.length, isStreaming, streamingContent],
+  });
+
+  // Persist messages to localStorage
+  useMessagePersistence({
+    sessionId: currentSessionId,
+    messages,
     updateSessionMetadata,
-    deleteSession: deleteStoredSession,
-  } = useSessionStorage();
+  });
 
-  // FIXED: Initialize session from localStorage or create new one
-  useEffect(() => {
-    const initializeSession = async () => {
-      const storedSessionId = sessionStorage.getActiveSessionId();
-      const storedSessions = sessionStorage.getSessions();
-
-      if (storedSessionId && storedSessions.find(s => s.sessionId === storedSessionId)) {
-        // Load existing session from localStorage
-        setCurrentSessionId(storedSessionId);
-        const storedMessages = sessionStorage.getMessages(storedSessionId);
-        // Sort by timestamp to ensure chronological order (oldest first)
-        const sortedMessages = [...storedMessages].sort((a, b) => a.timestamp - b.timestamp);
-        queryClient.setQueryData<Message[]>(['messages', storedSessionId], sortedMessages);
-      } else {
-        // No valid session - create new one via backend API
-        try {
-          const newSession = await createSession();
-          setCurrentSessionId(newSession.sessionId);
-          sessionStorage.setActiveSessionId(newSession.sessionId);
-        } catch (error) {
-          console.error('Failed to create session:', error);
-        }
-      }
-
-      setIsInitializing(false);
-    };
-
-    initializeSession();
-  }, [createSession, queryClient]);
-
-  const backendMessages = queryClient.getQueryData<Message[]>(['messages', currentSessionId]) || [];
-
-  // Combine messages while maintaining order - backend messages include both questions and answers
-  const messages = [...backendMessages, ...easterEggMessages];
-
-  // Save messages to localStorage whenever they change
-  useEffect(() => {
-    if (currentSessionId && messages.length > 0) {
-      sessionStorage.saveMessages(currentSessionId, messages);
-
-      // Update session metadata
-      const firstUserMessage = messages[0]?.question;
-      updateSessionMetadata(currentSessionId, messages.length, firstUserMessage);
-    }
-  }, [messages.length, currentSessionId]);
-
-  // Auto-scroll when messages change or streaming updates
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTo({
-        top: scrollRef.current.scrollHeight,
-        behavior: 'smooth'
-      });
-    }
-  }, [messages.length, isStreaming, streamingContent]);
-
-  // FIXED: Create new session via backend API
+  // Handle new session creation
   const handleNewSession = async () => {
     try {
-      const newSession = await createSession();
-      setCurrentSessionId(newSession.sessionId);
-      sessionStorage.setActiveSessionId(newSession.sessionId);
-      queryClient.setQueryData<Message[]>(['messages', newSession.sessionId], []);
-      setEasterEggMessages([]);
+      await createNewSession();
+      clearEasterEggs();
       setSidebarOpen(false);
     } catch (error) {
       console.error('Failed to create new session:', error);
     }
   };
 
+  // Handle session selection
   const handleSelectSession = (sessionId: string) => {
-    setCurrentSessionId(sessionId);
-    sessionStorage.setActiveSessionId(sessionId);
-
-    // Load messages from localStorage and ensure proper order
-    const storedMessages = sessionStorage.getMessages(sessionId);
-    // Sort by timestamp to ensure chronological order (oldest first)
-    const sortedMessages = [...storedMessages].sort((a, b) => a.timestamp - b.timestamp);
-    queryClient.setQueryData<Message[]>(['messages', sessionId], sortedMessages);
-    setEasterEggMessages([]);
+    switchSession(sessionId);
+    clearEasterEggs();
     setSidebarOpen(false);
   };
 
+  // Handle session deletion
   const handleDeleteSession = (sessionId: string) => {
-    // First, get the current sessions list from localStorage to get accurate count
-    const currentSessions = sessionStorage.getSessions();
-
-    // Delete the session
-    deleteStoredSession(sessionId);
-    queryClient.removeQueries({ queryKey: ['messages', sessionId] });
-
-    // If deleting active session, handle accordingly
-    if (sessionId === currentSessionId) {
-      // Check if there are other sessions remaining (excluding the one we just deleted)
-      const remainingSessions = currentSessions.filter(s => s.sessionId !== sessionId);
-
-      if (remainingSessions.length > 0) {
-        // Switch to the first remaining session
-        handleSelectSession(remainingSessions[0].sessionId);
-      } else {
-        // No sessions left, create a new one
-        handleNewSession();
-      }
-    }
+    removeSession(sessionId);
   };
 
+  // Handle message submission
   const handleSubmit = async (input: string) => {
     if (!currentSessionId) return;
 
-    // Check for easter eggs
-    const easterEggMessage = checkEasterEgg(input);
-    if (easterEggMessage) {
-      setEasterEggMessages(prev => [...prev, easterEggMessage]);
+    // Check for easter eggs first
+    if (handleEasterEgg(input)) {
       return;
     }
 
     // Clear easter eggs when asking a real question
-    setEasterEggMessages([]);
+    clearEasterEggs();
 
     // Add optimistic message immediately
-    const optimisticMessage: Message = {
-      id: `optimistic-${Date.now()}`,
-      question: input,
-      answer: '',
-      timestamp: Date.now(),
-    };
-
-    queryClient.setQueryData<Message[]>(['messages', currentSessionId], (old = []) => {
-      return [...old, optimisticMessage];
-    });
+    addOptimisticMessage(input);
 
     // Send message with streaming
     await sendMessage(input);
   };
 
-  // FIXED: Show loading state during initialization
+  // Show initialization error with retry option
+  if (initError) {
+    return (
+      <div className="flex h-screen items-center justify-center p-4">
+        <Card className="glass-card border-red-500/50 max-w-md">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-red-500">
+              <AlertCircle className="h-5 w-5" />
+              Initialization Failed
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Failed to initialize chat session. Please try again.
+            </p>
+            <p className="text-xs text-red-400">
+              Error: {initError.message}
+            </p>
+            <Button
+              onClick={retryInitialization}
+              className="w-full"
+            >
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Show loading state during initialization
   if (isInitializing) {
     return (
       <div className="flex h-screen items-center justify-center p-4">
