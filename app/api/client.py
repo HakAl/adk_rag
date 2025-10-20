@@ -1,15 +1,14 @@
-"""
-HTTP client for interacting with RAG Agent API.
-"""
 import httpx
 import json
-from typing import Dict, Any, AsyncGenerator
+import os
+from pathlib import Path
+from typing import Dict, Any, AsyncGenerator, Optional
 
 from config import settings, logger
 
 
 class APIClient:
-    """Client for RAG Agent API."""
+    """Client for RAG Agent API with authentication support."""
 
     def __init__(self, base_url: str = None, timeout: int = None):
         """
@@ -21,10 +20,54 @@ class APIClient:
         """
         self.base_url = base_url or settings.api_base_url
         self.timeout = timeout or settings.api_timeout
+        self.api_token = self._load_api_token()
+
+        # Create client with default headers
+        headers = {}
+        if self.api_token:
+            headers['Authorization'] = f'Bearer {self.api_token}'
+            logger.info("API token loaded from config")
+
         self.client = httpx.AsyncClient(
             base_url=self.base_url,
-            timeout=self.timeout
+            timeout=self.timeout,
+            headers=headers
         )
+
+    def _load_api_token(self) -> Optional[str]:
+        """
+        Load API token from config file.
+
+        Looks for ~/.ragagent/config.json with format:
+        {
+            "api_token": "vba_..."
+        }
+        """
+        config_path = Path.home() / '.ragagent' / 'config.json'
+
+        if not config_path.exists():
+            logger.warning(f"Config file not found: {config_path}")
+            logger.warning("CLI will not have authentication. Create config file with API token.")
+            return None
+
+        try:
+            with open(config_path, 'r') as f:
+                config = json.load(f)
+                token = config.get('api_token')
+
+                if not token:
+                    logger.warning("No api_token found in config file")
+                    return None
+
+                if not token.startswith('vba_'):
+                    logger.warning("Invalid token format (should start with 'vba_')")
+                    return None
+
+                return token
+
+        except Exception as e:
+            logger.error(f"Failed to load config: {e}")
+            return None
 
     async def close(self):
         """Close the HTTP client."""
@@ -60,21 +103,18 @@ class APIClient:
 
     async def create_session(self, user_id: str = "api_user") -> str:
         """
-        Create a new chat session.
+        Create a new chat session (requires authentication).
 
         Args:
-            user_id: User identifier
+            user_id: User identifier (ignored, uses authenticated user)
 
         Returns:
             Session ID
 
         Raises:
-            httpx.HTTPError: If request fails
+            httpx.HTTPError: If request fails (401 if not authenticated)
         """
-        response = await self.client.post(
-            "/sessions",
-            json={"user_id": user_id}
-        )
+        response = await self.client.post("/sessions/coordinator", json={})
         response.raise_for_status()
         data = response.json()
         return data["session_id"]
@@ -86,25 +126,24 @@ class APIClient:
         session_id: str
     ) -> str:
         """
-        Send a chat message and get response via coordinator with routing.
+        Send a chat message and get response via coordinator.
 
         Args:
             message: User message
-            user_id: User identifier
+            user_id: User identifier (ignored, uses authenticated user)
             session_id: Session identifier
 
         Returns:
             Assistant response
 
         Raises:
-            httpx.HTTPError: If request fails
+            httpx.HTTPError: If request fails (401 if not authenticated)
         """
         response = await self.client.post(
             "/chat/coordinator",
             json={
                 "message": message,
-                "user_id": user_id,
-                "session_id": session_id
+                "session_id": session_id  # CLI sends session_id in body
             }
         )
         response.raise_for_status()
@@ -122,22 +161,21 @@ class APIClient:
 
         Args:
             message: User message
-            user_id: User identifier
+            user_id: User identifier (ignored, uses authenticated user)
             session_id: Session identifier
 
         Yields:
             Event dictionaries with type and data fields
 
         Raises:
-            httpx.HTTPError: If request fails
+            httpx.HTTPError: If request fails (401 if not authenticated)
         """
         async with self.client.stream(
             "POST",
             "/chat/coordinator/stream",
             json={
                 "message": message,
-                "user_id": user_id,
-                "session_id": session_id
+                "session_id": session_id  # CLI sends session_id in body
             }
         ) as response:
             response.raise_for_status()
