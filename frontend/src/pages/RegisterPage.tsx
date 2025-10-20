@@ -1,10 +1,18 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, Navigate, Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Loader2, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import HCaptcha from '@hcaptcha/react-hcaptcha';
+
+
+const HCAPTCHA_SITEKEY = import.meta.env.VITE_HCAPTCHA_SITEKEY;
+
+if (!HCAPTCHA_SITEKEY) {
+  console.error('hCaptcha sitekey not configured');
+}
 
 export const RegisterPage = () => {
   const [username, setUsername] = useState('');
@@ -15,13 +23,52 @@ export const RegisterPage = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [requireVisibleCaptcha, setRequireVisibleCaptcha] = useState(false);
+  const [checkingCaptchaStatus, setCheckingCaptchaStatus] = useState(true);
+
   const { user, register } = useAuth();
   const navigate = useNavigate();
+  const hcaptchaRef = useRef<HCaptcha>(null);
+
+  // Check if visible CAPTCHA is required on mount
+  useEffect(() => {
+    const checkCaptchaStatus = async () => {
+      try {
+        const response = await fetch('/register/captcha-status');
+        if (response.ok) {
+          const data = await response.json();
+          setRequireVisibleCaptcha(data.captcha_required);
+        }
+      } catch (err) {
+        console.error('Failed to check captcha status:', err);
+      } finally {
+        setCheckingCaptchaStatus(false);
+      }
+    };
+
+    checkCaptchaStatus();
+  }, []);
 
   // Redirect if already logged in
   if (user && !loading) {
     return <Navigate to="/chat" replace />;
   }
+
+  const handleCaptchaVerify = (token: string) => {
+    setCaptchaToken(token);
+    setError(''); // Clear any CAPTCHA errors
+  };
+
+  const handleCaptchaExpire = () => {
+    setCaptchaToken(null);
+  };
+
+  const handleCaptchaError = (err: string) => {
+    console.error('hCaptcha error:', err);
+    setCaptchaToken(null);
+    setError('CAPTCHA verification failed. Please try again.');
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,18 +97,65 @@ export const RegisterPage = () => {
       return;
     }
 
+    // Check CAPTCHA if required
+    if (requireVisibleCaptcha && !captchaToken) {
+      setError('Please complete the CAPTCHA');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const result = await register(username, email, password);
-      // Navigate to verification page with email
+      const response = await fetch('/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          username,
+          email,
+          password,
+          captcha_token: captchaToken
+        })
+      });
+
+      // Check if visible CAPTCHA is now required
+      const requireCaptchaHeader = response.headers.get('X-Require-Visible-Captcha');
+      if (requireCaptchaHeader === 'true') {
+        setRequireVisibleCaptcha(true);
+        setCaptchaToken(null);
+        if (hcaptchaRef.current) {
+          hcaptchaRef.current.resetCaptcha();
+        }
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Registration failed');
+      }
+
+      const result = await response.json();
+      // Navigate to verification page
       navigate('/verify-email-sent', { state: { email: result.email } });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed');
+
+      // Reset CAPTCHA on error
+      if (hcaptchaRef.current) {
+        hcaptchaRef.current.resetCaptcha();
+      }
+      setCaptchaToken(null);
     } finally {
       setLoading(false);
     }
   };
+
+  if (checkingCaptchaStatus) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
@@ -187,9 +281,27 @@ export const RegisterPage = () => {
               </div>
             </div>
 
+            {/* hCaptcha - invisible or visible based on failed attempts */}
+            <div className="flex justify-center">
+              <HCaptcha
+                ref={hcaptchaRef}
+                sitekey={HCAPTCHA_SITEKEY}
+                onVerify={handleCaptchaVerify}
+                onExpire={handleCaptchaExpire}
+                onError={handleCaptchaError}
+                size={requireVisibleCaptcha ? 'normal' : 'invisible'}
+              />
+            </div>
+
+            {requireVisibleCaptcha && (
+              <p className="text-xs text-yellow-600 text-center">
+                ⚠️ Multiple failed attempts detected. Please complete the CAPTCHA.
+              </p>
+            )}
+
             <Button
               type="submit"
-              disabled={loading}
+              disabled={loading || (requireVisibleCaptcha && !captchaToken)}
               className="w-full glass-button"
             >
               {loading ? (

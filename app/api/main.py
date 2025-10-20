@@ -24,6 +24,14 @@ from app.api.models import (
 )
 from app.utils.input_sanitizer import InputSanitizationError
 from app.db.database import init_db, close_db
+
+from app.api.registration_rate_limiter import (
+    check_registration_captcha_required,
+    record_registration_attempt,
+    cleanup_old_registration_attempts
+)
+from app.services.hcaptcha_service import HCaptchaService
+
 from app.api.session_manager import (
     create_session,
     get_session,
@@ -47,6 +55,7 @@ import asyncio
 
 rag_app: Optional[RAGAgentApp] = None
 auth_service = AuthService()
+hcaptcha_service = HCaptchaService()
 
 
 def get_client_id(request: Request) -> str:
@@ -133,6 +142,7 @@ async def lifespan(app: FastAPI):
             await asyncio.sleep(3600)  # Run every hour
             await cleanup_expired_sessions()
             await cleanup_old_rate_limits()
+            await cleanup_old_registration_attempts()
 
     cleanup_task = asyncio.create_task(cleanup_loop())
 
@@ -217,12 +227,44 @@ async def health_check():
 
 @app.post(
     "/register",
-    response_model=RegisterResponse,
-    dependencies=[Depends(register_rate_limit)]
+    response_model=RegisterResponse
 )
-async def register(request_data: RegisterRequest):
-    """Register a new user and send verification email."""
+async def register(request_data: RegisterRequest, request: Request):
+    """Register a new user with hCaptcha verification."""
+    client_id = get_client_id(request)
+
     try:
+        # Check if visible CAPTCHA is required
+        captcha_required, failed_count = await check_registration_captcha_required(client_id)
+
+        # Verify hCaptcha token if provided or required
+        if request_data.captcha_token:
+            success, error = await hcaptcha_service.verify_token(
+                request_data.captcha_token,
+                client_ip=client_id
+            )
+
+            if not success:
+                await record_registration_attempt(client_id, False, "captcha_failed")
+
+                # Tell frontend if visible CAPTCHA is now required
+                new_captcha_required, new_count = await check_registration_captcha_required(client_id)
+
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=error or "CAPTCHA verification failed",
+                    headers={"X-Require-Visible-Captcha": str(new_captcha_required).lower()}
+                )
+
+        elif captcha_required:
+            # No token provided but CAPTCHA is required
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="CAPTCHA verification required",
+                headers={"X-Require-Visible-Captcha": "true"}
+            )
+
+        # Proceed with registration
         user, error = await auth_service.create_user(
             username=request_data.username,
             email=request_data.email,
@@ -230,10 +272,20 @@ async def register(request_data: RegisterRequest):
         )
 
         if error:
+            # Record failure (user already exists, etc.)
+            await record_registration_attempt(client_id, False, "user_exists")
+
+            # Check if CAPTCHA should now be required
+            new_captcha_required, _ = await check_registration_captcha_required(client_id)
+
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=error
+                detail=error,
+                headers={"X-Require-Visible-Captcha": str(new_captcha_required).lower()}
             )
+
+        # Success - clear attempts
+        await record_registration_attempt(client_id, True)
 
         return RegisterResponse(
             user_id=str(user.id),
@@ -250,6 +302,18 @@ async def register(request_data: RegisterRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Registration failed"
         )
+
+
+@app.get("/register/captcha-status")
+async def get_captcha_status(request: Request):
+    """Check if visible CAPTCHA is required for this IP."""
+    client_id = get_client_id(request)
+    captcha_required, failed_count = await check_registration_captcha_required(client_id)
+
+    return {
+        "captcha_required": captcha_required,
+        "failed_count": failed_count
+    }
 
 
 @app.get("/verify-email", response_model=VerifyEmailResponse)

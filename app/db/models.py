@@ -174,3 +174,17 @@ class WebSession(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     last_activity = Column(DateTime, default=datetime.utcnow, nullable=False)
     expires_at = Column(DateTime, nullable=False)
+
+
+class RegistrationAttempt(Base):
+    """Track registration attempts for rate limiting and CAPTCHA escalation."""
+    __tablename__ = "registration_attempts"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    client_id = Column(String, nullable=False, index=True)  # IP address
+    failed_count = Column(Integer, default=0)
+    last_attempt = Column(DateTime, default=datetime.utcnow)
+    locked_until = Column(DateTime, nullable=True)  # Optional lockout
+
+    # Track what failed
+    last_error_type = Column(String, nullable=True)  # 'captcha_failed', 'user_exists', etc.

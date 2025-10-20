@@ -97,6 +97,14 @@ class Settings:
 
     secret_key: str = "dev-secret-key-change-in-production"  # For future JWT use if needed
 
+    # hCaptcha Configuration
+    hcaptcha_sitekey: str = ""
+    hcaptcha_secret_key: str = ""
+
+    # Registration CAPTCHA Settings
+    registration_captcha_threshold: int = 3  # Show visible captcha after N failures
+    registration_attempt_window: int = 3600  # 1 hour in seconds
+
     # Email Configuration
     resend_api_key: str = ""
     backend_url: str = "http://localhost:8000"
@@ -205,6 +213,10 @@ class Settings:
             resend_api_key=os.getenv("RESEND_API_KEY", ""),
             backend_url=os.getenv("BACKEND_URL", "http://localhost:8000"),
 
+            hcaptcha_sitekey=os.getenv("HCAPTCHA_SITEKEY", ""),
+            hcaptcha_secret_key=os.getenv("HCAPTCHA_SECRET_KEY", ""),
+            registration_captcha_threshold=int(os.getenv("REGISTRATION_CAPTCHA_THRESHOLD", "3")),
+            registration_attempt_window=int(os.getenv("REGISTRATION_ATTEMPT_WINDOW", "3600")),
         )
 
 

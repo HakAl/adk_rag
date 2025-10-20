@@ -2,7 +2,7 @@
 API request/response models with input validation.
 """
 from typing import Optional, Dict, Any
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 class ChatRequest(BaseModel):
@@ -132,6 +132,7 @@ class RegisterRequest(BaseModel):
     username: str = Field(..., min_length=3, max_length=30)
     email: str = Field(..., min_length=3, max_length=255)
     password: str = Field(..., min_length=8, max_length=100)
+    captcha_token: Optional[str] = None
 
     @field_validator('username')
     @classmethod
