@@ -24,7 +24,9 @@
   },
   "scripts": {
     "dev": "vite",
+    "dev:lite": "vite --mode lite",
     "build": "tsc && vite build",
+    "build:lite": "tsc && vite build --mode lite",
     "preview": "vite preview",
     "test": "vitest"
   },
