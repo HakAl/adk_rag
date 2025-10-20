@@ -12,7 +12,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (usernameOrEmail: string, password: string) => Promise<void>;
-  register: (username: string, email: string, password: string) => Promise<void>;
+  register: (username: string, email: string, password: string) => Promise<{ email: string }>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
 }
@@ -60,6 +60,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     if (!response.ok) {
       const error = await response.json();
+
+      // Check for email not verified (403)
+      if (response.status === 403) {
+        const verificationError = new Error(error.detail || 'Email not verified');
+        (verificationError as any).isEmailNotVerified = true;
+        throw verificationError;
+      }
+
       throw new Error(error.detail || 'Login failed');
     }
 
@@ -91,8 +99,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       throw new Error(error.detail || 'Registration failed');
     }
 
-    // Auto-login after registration
-    await login(username, password);
+    const data = await response.json();
+    // Return email for verification flow, do NOT auto-login
+    return { email: data.email };
   };
 
   const logout = async () => {
@@ -107,6 +116,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       // Clear CSRF token
       setCsrfToken(null);
       setUser(null);
+      // Clear all localStorage to prevent data leakage between users
+      localStorage.clear();
     }
   };
 

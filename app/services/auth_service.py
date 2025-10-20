@@ -271,13 +271,13 @@ class AuthService:
             self,
             username_or_email: str,
             password: str
-    ) -> Optional[User]:
+    ) -> Tuple[Optional[User], Optional[str]]:
         """
         Authenticate a user by username/email and password.
         Only allows login if email is verified.
 
         Returns:
-            User if authenticated, None otherwise
+            (User if authenticated, error_type: None | "invalid_credentials" | "email_not_verified")
         """
         username_or_email = username_or_email.lower().strip()
 
@@ -296,19 +296,19 @@ class AuthService:
                 user = result.scalar_one_or_none()
 
             if not user:
-                return None
+                return None, "invalid_credentials"
 
             if not user.is_active:
-                return None
-
-            # Check if email is verified
-            if not user.email_verified:
-                return None
+                return None, "invalid_credentials"
 
             if not self.verify_password(password, user.hashed_password):
-                return None
+                return None, "invalid_credentials"
 
-            return user
+            # Check if email is verified (AFTER password check)
+            if not user.email_verified:
+                return None, "email_not_verified"
+
+            return user, None
 
     async def create_api_token(
             self,

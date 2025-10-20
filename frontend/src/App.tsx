@@ -8,6 +8,8 @@ import { SettingsProvider } from './contexts/SettingsContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
+import { VerifyEmailSentPage } from './pages/VerifyEmailSentPage';
+import { VerifyEmailPage } from './pages/VerifyEmailPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { useSettings } from './hooks/useSettings';
 import { useHealthCheck } from './hooks/useHealthCheck';
@@ -55,6 +57,8 @@ function App() {
               {/* Public routes */}
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
+              <Route path="/verify-email-sent" element={<VerifyEmailSentPage />} />
+              <Route path="/verify-email" element={<VerifyEmailPage />} />
 
               {/* Protected routes */}
               <Route

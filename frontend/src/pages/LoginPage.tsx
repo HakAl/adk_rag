@@ -1,7 +1,3 @@
-/**
- * Login page component
- * Create as: src/pages/LoginPage.tsx
- */
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, Navigate, Link } from 'react-router-dom';
@@ -32,8 +28,15 @@ export const LoginPage = () => {
     try {
       await login(usernameOrEmail, password);
       navigate('/chat');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
+    } catch (err: any) {
+      // Check if error is due to unverified email
+      if (err.isEmailNotVerified) {
+        navigate('/verify-email-sent', {
+          state: { email: usernameOrEmail.includes('@') ? usernameOrEmail : '' }
+        });
+      } else {
+        setError(err instanceof Error ? err.message : 'Login failed');
+      }
     } finally {
       setLoading(false);
     }

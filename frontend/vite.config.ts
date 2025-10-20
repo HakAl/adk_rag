@@ -23,6 +23,14 @@ export default defineConfig({
         target: 'http://localhost:8000',
         changeOrigin: true,
       },
+      '/verify-email': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+      '/resend-verification': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
       // Chat endpoints - use specific paths to avoid conflicting with React Router
       '/chat/coordinator': {
         target: 'http://localhost:8000',

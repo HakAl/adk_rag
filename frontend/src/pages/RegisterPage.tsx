@@ -1,7 +1,3 @@
-/**
- * Registration page component
- * Create as: src/pages/RegisterPage.tsx
- */
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, Navigate, Link } from 'react-router-dom';
@@ -57,8 +53,9 @@ export const RegisterPage = () => {
     setLoading(true);
 
     try {
-      await register(username, email, password);
-      navigate('/chat');
+      const result = await register(username, email, password);
+      // Navigate to verification page with email
+      navigate('/verify-email-sent', { state: { email: result.email } });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed');
     } finally {
@@ -74,7 +71,7 @@ export const RegisterPage = () => {
             Create Account
           </CardTitle>
           <p className="text-center text-muted-foreground text-sm">
-            Join VIBE Agent
+            Join VIBE Code
           </p>
         </CardHeader>
 

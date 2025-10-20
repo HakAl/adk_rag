@@ -1,6 +1,3 @@
-"""
-Email service for sending verification emails via Resend.
-"""
 import httpx
 from typing import Optional
 from config import settings, logger
@@ -33,6 +30,20 @@ class EmailService:
             True if sent successfully, False otherwise
         """
         verification_url = f"{settings.backend_url}/verify-email?token={verification_token}"
+
+        # In development mode, log the verification URL and skip actual email sending
+        if settings.environment == "development":
+            logger.info("=" * 80)
+            logger.info("📧 EMAIL VERIFICATION (Development Mode)")
+            logger.info("=" * 80)
+            logger.info(f"To: {to_email}")
+            logger.info(f"Username: {username}")
+            logger.info(f"🔗 Verification URL:")
+            logger.info(f"   {verification_url}")
+            logger.info("=" * 80)
+            logger.info("Copy the URL above and paste it in your browser to verify the email.")
+            logger.info("=" * 80)
+            return True
 
         html_content = f"""
         <!DOCTYPE html>

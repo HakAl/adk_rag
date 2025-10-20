@@ -269,15 +269,21 @@ async def login(
     """Login and create session (requires verified email)."""
     try:
         # Authenticate user
-        user = await auth_service.authenticate_user(
+        user, error_type = await auth_service.authenticate_user(
             username_or_email=request_data.username_or_email,
             password=request_data.password
         )
 
-        if not user:
+        if error_type == "email_not_verified":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Email not verified"
+            )
+
+        if error_type == "invalid_credentials" or not user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid credentials or email not verified"
+                detail="Invalid credentials"
             )
 
         # Create chat session
