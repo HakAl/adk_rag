@@ -24,7 +24,7 @@ async def get_current_user(
         HTTPException: 401 if not authenticated
     """
     # Try session cookie first (web)
-    session = get_session(request)
+    session = await get_session(request)  # ✅ Added await
     if session and session.get("user_id"):
         user = await auth_service.get_user_by_id(session["user_id"])
         if user and user.is_active:

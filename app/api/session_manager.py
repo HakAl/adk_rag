@@ -1,16 +1,17 @@
 """
-Session and CSRF token management for secure cookie-based sessions.
+Session and CSRF token management with PostgreSQL backend.
 """
 import secrets
-import hashlib
 from datetime import datetime, timedelta
 from typing import Optional, Dict
 from fastapi import Request, HTTPException, status
 from fastapi.responses import Response
+from sqlalchemy import select, delete
+from sqlalchemy.ext.asyncio import AsyncSession
 
-# In-memory storage (replace with Redis/PostgreSQL in production)
-session_store: Dict[str, Dict] = {}
-csrf_store: Dict[str, str] = {}  # session_id -> csrf_token
+from app.db.database import get_db
+from app.db.models import WebSession
+from config import logger
 
 # Configuration
 SESSION_COOKIE_NAME = "session_id"
@@ -29,7 +30,7 @@ def generate_csrf_token() -> str:
     return secrets.token_urlsafe(CSRF_TOKEN_LENGTH)
 
 
-def create_session(response: Response, user_id: str, chat_session_id: str) -> str:
+async def create_session(response: Response, user_id: str, chat_session_id: str) -> str:
     """
     Create a new session and set secure cookie.
 
@@ -43,35 +44,51 @@ def create_session(response: Response, user_id: str, chat_session_id: str) -> st
     """
     session_id = generate_session_id()
     csrf_token = generate_csrf_token()
+    now = datetime.utcnow()
+    expires_at = now + SESSION_LIFETIME
 
-    # Store session data
-    session_store[session_id] = {
-        "user_id": user_id,
-        "chat_session_id": chat_session_id,
-        "created_at": datetime.now(),
-        "last_activity": datetime.now()
-    }
-
-    # Store CSRF token
-    csrf_store[session_id] = csrf_token
+    # Store session in database
+    async for db in get_db():
+        try:
+            session = WebSession(
+                id=session_id,
+                user_id=user_id,
+                chat_session_id=chat_session_id,
+                csrf_token=csrf_token,
+                created_at=now,
+                last_activity=now,
+                expires_at=expires_at
+            )
+            db.add(session)
+            await db.commit()
+        except Exception as e:
+            logger.error(f"Error creating session: {e}")
+            await db.rollback()
+            raise
+        break
 
     # Set secure HttpOnly cookie
+    # Note: secure=True for production, secure=False for local dev
+    # You should use environment variable to control this
+    from config import settings
+    is_production = settings.environment == "production"
+
     response.set_cookie(
         key=SESSION_COOKIE_NAME,
         value=session_id,
-        httponly=True,  # Prevents JavaScript access
-        secure=True,  # HTTPS only (set to False for local dev)
-        samesite="strict",  # CSRF protection
+        httponly=True,
+        secure=is_production,  # HTTPS only in production
+        samesite="strict",
         max_age=int(SESSION_LIFETIME.total_seconds())
     )
 
-    # Send CSRF token in response header (frontend will store and send back)
+    # Send CSRF token in response header
     response.headers[CSRF_HEADER_NAME] = csrf_token
 
     return session_id
 
 
-def get_session(request: Request) -> Optional[Dict]:
+async def get_session(request: Request) -> Optional[Dict]:
     """
     Get session data from cookie.
 
@@ -83,23 +100,45 @@ def get_session(request: Request) -> Optional[Dict]:
     """
     session_id = request.cookies.get(SESSION_COOKIE_NAME)
 
-    if not session_id or session_id not in session_store:
+    if not session_id:
         return None
 
-    session = session_store[session_id]
+    async for db in get_db():
+        try:
+            # Query session
+            result = await db.execute(
+                select(WebSession).where(WebSession.id == session_id)
+            )
+            session = result.scalar_one_or_none()
 
-    # Check expiration
-    if datetime.now() - session["created_at"] > SESSION_LIFETIME:
-        delete_session(session_id)
-        return None
+            if not session:
+                return None
 
-    # Update last activity
-    session["last_activity"] = datetime.now()
+            # Check expiration
+            if datetime.utcnow() > session.expires_at:
+                await delete_session(session_id)
+                return None
 
-    return session
+            # Update last activity
+            session.last_activity = datetime.utcnow()
+            await db.commit()
+
+            return {
+                "user_id": str(session.user_id),
+                "chat_session_id": session.chat_session_id,
+                "created_at": session.created_at,
+                "last_activity": session.last_activity
+            }
+
+        except Exception as e:
+            logger.error(f"Error getting session: {e}")
+            return None
+        break
+
+    return None
 
 
-def verify_csrf_token(request: Request) -> bool:
+async def verify_csrf_token(request: Request) -> bool:
     """
     Verify CSRF token from request header matches session.
 
@@ -115,31 +154,54 @@ def verify_csrf_token(request: Request) -> bool:
     if not session_id or not csrf_token:
         return False
 
-    stored_token = csrf_store.get(session_id)
+    async for db in get_db():
+        try:
+            result = await db.execute(
+                select(WebSession).where(WebSession.id == session_id)
+            )
+            session = result.scalar_one_or_none()
 
-    if not stored_token:
-        return False
+            if not session:
+                return False
 
-    # Constant-time comparison to prevent timing attacks
-    return secrets.compare_digest(csrf_token, stored_token)
+            # Constant-time comparison to prevent timing attacks
+            return secrets.compare_digest(csrf_token, session.csrf_token)
+
+        except Exception as e:
+            logger.error(f"Error verifying CSRF token: {e}")
+            return False
+        break
+
+    return False
 
 
-def delete_session(session_id: str):
-    """Delete session and associated CSRF token."""
-    session_store.pop(session_id, None)
-    csrf_store.pop(session_id, None)
+async def delete_session(session_id: str):
+    """Delete session from database."""
+    async for db in get_db():
+        try:
+            await db.execute(
+                delete(WebSession).where(WebSession.id == session_id)
+            )
+            await db.commit()
+        except Exception as e:
+            logger.error(f"Error deleting session: {e}")
+            await db.rollback()
+        break
 
 
-def clear_session(response: Response, request: Request):
+async def clear_session(response: Response, request: Request):
     """Clear session cookie and data."""
     session_id = request.cookies.get(SESSION_COOKIE_NAME)
     if session_id:
-        delete_session(session_id)
+        await delete_session(session_id)
+
+    from config import settings
+    is_production = settings.environment == "production"
 
     response.delete_cookie(
         key=SESSION_COOKIE_NAME,
         httponly=True,
-        secure=True,
+        secure=is_production,
         samesite="strict"
     )
 
@@ -151,7 +213,7 @@ async def require_session(request: Request) -> Dict:
     Raises:
         HTTPException: If session is invalid or missing
     """
-    session = get_session(request)
+    session = await get_session(request)
 
     if not session:
         raise HTTPException(
@@ -169,10 +231,24 @@ async def require_csrf(request: Request):
     Raises:
         HTTPException: If CSRF token is invalid or missing
     """
-    # Only check CSRF for state-changing methods
     if request.method in ["POST", "PUT", "DELETE", "PATCH"]:
-        if not verify_csrf_token(request):
+        if not await verify_csrf_token(request):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Invalid or missing CSRF token"
             )
+
+
+async def cleanup_expired_sessions():
+    """Background task to clean up expired sessions."""
+    async for db in get_db():
+        try:
+            await db.execute(
+                delete(WebSession).where(WebSession.expires_at < datetime.utcnow())
+            )
+            await db.commit()
+            logger.info("Cleaned up expired sessions")
+        except Exception as e:
+            logger.error(f"Error cleaning up sessions: {e}")
+            await db.rollback()
+        break

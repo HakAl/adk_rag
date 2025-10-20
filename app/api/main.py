@@ -4,8 +4,6 @@ from fastapi.responses import JSONResponse, StreamingResponse, RedirectResponse
 from contextlib import asynccontextmanager
 from typing import Optional
 from pydantic import ValidationError
-from collections import defaultdict
-from datetime import datetime, timedelta
 
 from config import settings, logger
 from app.core.application import RAGAgentApp
@@ -30,7 +28,16 @@ from app.api.session_manager import (
     create_session,
     get_session,
     clear_session,
-    require_csrf
+    require_csrf,
+    cleanup_expired_sessions
+)
+from app.api.rate_limiter import (
+    check_rate_limit,
+    check_login_lockout,
+    record_failed_login,
+    clear_failed_logins,
+    cleanup_old_rate_limits,
+    RATE_LIMITS
 )
 from app.api.auth_middleware import get_current_user
 from app.services.auth_service import AuthService
@@ -40,12 +47,77 @@ import asyncio
 
 rag_app: Optional[RAGAgentApp] = None
 auth_service = AuthService()
-rate_limit_store = defaultdict(list)
-resend_limit_store = defaultdict(list)
-RATE_LIMIT_REQUESTS = 60
-RATE_LIMIT_WINDOW = 60
-RESEND_LIMIT_REQUESTS = 3
-RESEND_LIMIT_WINDOW = 3600  # 1 hour
+
+
+def get_client_id(request: Request) -> str:
+    """Get client identifier (IP address)."""
+    return request.client.host if request.client else "unknown"
+
+
+async def rate_limit_dependency(request: Request):
+    """Rate limit for general unauthenticated requests."""
+    # Check if CLI (has Authorization header with Bearer token)
+    if request.headers.get("Authorization", "").startswith("Bearer "):
+        # CLI request - no rate limit
+        return
+
+    client_id = get_client_id(request)
+
+    if not await check_rate_limit(client_id, "unauth_general", RATE_LIMITS["unauth_general"]):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Rate limit exceeded. Please try again later."
+        )
+
+
+async def register_rate_limit(request: Request):
+    """Rate limit for registration endpoint."""
+    client_id = get_client_id(request)
+
+    if not await check_rate_limit(client_id, "register", RATE_LIMITS["register"]):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many registration attempts. Please try again later."
+        )
+
+
+async def login_rate_limit(request: Request):
+    """Rate limit for login endpoint."""
+    client_id = get_client_id(request)
+
+    if not await check_rate_limit(client_id, "login", RATE_LIMITS["login"]):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many login attempts. Please try again in 15 minutes."
+        )
+
+
+async def resend_rate_limit(request: Request):
+    """Rate limit for resend verification endpoint."""
+    client_id = get_client_id(request)
+
+    if not await check_rate_limit(client_id, "resend_verification", RATE_LIMITS["resend_verification"]):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many resend requests. Please try again later."
+        )
+
+
+async def chat_rate_limit(request: Request, current_user: User = Depends(get_current_user)):
+    """Rate limit for authenticated chat endpoints."""
+    # Check if CLI (has Authorization header with Bearer token)
+    if request.headers.get("Authorization", "").startswith("Bearer "):
+        # CLI request - no rate limit
+        return
+
+    # Use user_id for authenticated rate limiting
+    client_id = str(current_user.id)
+
+    if not await check_rate_limit(client_id, "auth_chat", RATE_LIMITS["auth_chat"]):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Chat rate limit exceeded. Please slow down."
+        )
 
 
 @asynccontextmanager
@@ -54,8 +126,20 @@ async def lifespan(app: FastAPI):
     logger.info("Starting FastAPI application")
     await init_db()
     rag_app = RAGAgentApp()
+
+    # Start background cleanup tasks
+    async def cleanup_loop():
+        while True:
+            await asyncio.sleep(3600)  # Run every hour
+            await cleanup_expired_sessions()
+            await cleanup_old_rate_limits()
+
+    cleanup_task = asyncio.create_task(cleanup_loop())
+
     yield
+
     logger.info("Shutting down FastAPI application")
+    cleanup_task.cancel()
     await close_db()
     rag_app = None
 
@@ -76,9 +160,21 @@ async def disable_compression_for_streams(request: Request, call_next):
     return response
 
 
+# CORS - Environment-based configuration
+allowed_origins = [
+    "http://localhost:3000",
+    "http://localhost:5173"
+]
+
+# Add production origins when deployed
+if settings.environment == "production":
+    # TODO: Add your GitHub Pages URL here when deployed
+    # allowed_origins.append("https://yourusername.github.io")
+    pass
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "X-CSRF-Token", "Authorization", "X-API-Token"],
@@ -90,42 +186,6 @@ def get_app() -> RAGAgentApp:
     if rag_app is None:
         raise HTTPException(status_code=503, detail="Service not initialized")
     return rag_app
-
-
-def check_rate_limit(client_id: str) -> bool:
-    now = datetime.now()
-    cutoff = now - timedelta(seconds=RATE_LIMIT_WINDOW)
-    rate_limit_store[client_id] = [
-        timestamp for timestamp in rate_limit_store[client_id]
-        if timestamp > cutoff
-    ]
-    if len(rate_limit_store[client_id]) >= RATE_LIMIT_REQUESTS:
-        return False
-    rate_limit_store[client_id].append(now)
-    return True
-
-
-def check_resend_limit(client_id: str) -> bool:
-    """Check rate limit for resend verification email (3 per hour)."""
-    now = datetime.now()
-    cutoff = now - timedelta(seconds=RESEND_LIMIT_WINDOW)
-    resend_limit_store[client_id] = [
-        timestamp for timestamp in resend_limit_store[client_id]
-        if timestamp > cutoff
-    ]
-    if len(resend_limit_store[client_id]) >= RESEND_LIMIT_REQUESTS:
-        return False
-    resend_limit_store[client_id].append(now)
-    return True
-
-
-async def rate_limit_dependency(request: Request):
-    client_id = request.client.host if request.client else "unknown"
-    if not check_rate_limit(client_id):
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Rate limit exceeded. Please try again later."
-        )
 
 
 @app.exception_handler(ValidationError)
@@ -158,7 +218,7 @@ async def health_check():
 @app.post(
     "/register",
     response_model=RegisterResponse,
-    dependencies=[Depends(rate_limit_dependency)]
+    dependencies=[Depends(register_rate_limit)]
 )
 async def register(request_data: RegisterRequest):
     """Register a new user and send verification email."""
@@ -193,7 +253,7 @@ async def register(request_data: RegisterRequest):
 
 
 @app.get("/verify-email", response_model=VerifyEmailResponse)
-async def verify_email(token: str):
+async def verify_email(token: str, request: Request):
     """Verify email with token from email link."""
     try:
         success, error = await auth_service.verify_email(token)
@@ -204,7 +264,10 @@ async def verify_email(token: str):
                 detail=error or "Verification failed"
             )
 
-        # Return simple success page or redirect to frontend
+        # Clear any failed login attempts for this IP on successful verification
+        client_id = get_client_id(request)
+        await clear_failed_logins(client_id)
+
         return VerifyEmailResponse(
             message="Email verified successfully! You can now login.",
             verified=True
@@ -222,19 +285,11 @@ async def verify_email(token: str):
 
 @app.post(
     "/resend-verification",
-    dependencies=[Depends(rate_limit_dependency)]
+    dependencies=[Depends(resend_rate_limit)]
 )
 async def resend_verification(request: Request, request_data: ResendVerificationRequest):
     """Resend verification email (rate limited: 3 per hour)."""
     try:
-        # Check resend-specific rate limit
-        client_id = request.client.host if request.client else "unknown"
-        if not check_resend_limit(client_id):
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Too many resend requests. Please try again later."
-            )
-
         success, error = await auth_service.resend_verification_email(request_data.email)
 
         if not success:
@@ -258,16 +313,26 @@ async def resend_verification(request: Request, request_data: ResendVerification
 @app.post(
     "/login",
     response_model=LoginResponse,
-    dependencies=[Depends(rate_limit_dependency)]
+    dependencies=[Depends(login_rate_limit)]
 )
 async def login(
-    request_data: LoginRequest,
-    request: Request,
-    response: Response,
-    app: RAGAgentApp = Depends(get_app)
+        request_data: LoginRequest,
+        request: Request,
+        response: Response,
+        app: RAGAgentApp = Depends(get_app)
 ):
     """Login and create session (requires verified email)."""
     try:
+        client_id = get_client_id(request)
+
+        # Check if locked out
+        locked_until = await check_login_lockout(client_id, request_data.username_or_email)
+        if locked_until:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"Too many failed login attempts. Try again after {locked_until.strftime('%H:%M:%S UTC')}"
+            )
+
         # Authenticate user
         user, error_type = await auth_service.authenticate_user(
             username_or_email=request_data.username_or_email,
@@ -281,16 +346,21 @@ async def login(
             )
 
         if error_type == "invalid_credentials" or not user:
+            # Record failed attempt
+            await record_failed_login(client_id, request_data.username_or_email)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid credentials"
             )
 
+        # Clear failed login attempts on success
+        await clear_failed_logins(client_id)
+
         # Create chat session
         chat_session_id = await app.create_coordinator_session(str(user.id))
 
         # Create web session with cookie
-        create_session(response, str(user.id), chat_session_id)
+        await create_session(response, str(user.id), chat_session_id)
 
         return LoginResponse(
             user_id=str(user.id),
@@ -323,9 +393,9 @@ async def get_me(current_user: User = Depends(get_current_user)):
 @app.post("/logout")
 async def logout(request: Request, response: Response):
     """Logout and clear session."""
-    session = get_session(request)
+    session = await get_session(request)
     if session:
-        clear_session(response, request)
+        await clear_session(response, request)
         return {"message": "Logged out successfully"}
     return {"message": "No active session"}
 
@@ -340,19 +410,19 @@ async def logout(request: Request, response: Response):
     dependencies=[Depends(rate_limit_dependency)]
 )
 async def create_coordinator_session(
-    request: Request,
-    response: Response,
-    app: RAGAgentApp = Depends(get_app),
-    current_user: User = Depends(get_current_user)
+        request: Request,
+        response: Response,
+        app: RAGAgentApp = Depends(get_app),
+        current_user: User = Depends(get_current_user)
 ):
     """Create a new coordinator session (requires authentication)."""
     try:
         chat_session_id = await app.create_coordinator_session(str(current_user.id))
 
         # For web users, create/update session cookie
-        session = get_session(request)
+        session = await get_session(request)
         if not session:
-            create_session(response, str(current_user.id), chat_session_id)
+            await create_session(response, str(current_user.id), chat_session_id)
 
         return SessionCreateResponse(
             session_id=chat_session_id,
@@ -364,29 +434,29 @@ async def create_coordinator_session(
 
 
 # ============================================================================
-# CHAT ENDPOINTS (Now use authentication)
+# CHAT ENDPOINTS (Now use authentication and rate limiting)
 # ============================================================================
 
 @app.post(
     "/chat/coordinator",
     response_model=ChatResponse,
-    dependencies=[Depends(rate_limit_dependency)]
+    dependencies=[Depends(chat_rate_limit)]
 )
 async def chat_coordinator(
-    request_data: ChatRequest,
-    request: Request,
-    app: RAGAgentApp = Depends(get_app),
-    current_user: User = Depends(get_current_user)
+        request_data: ChatRequest,
+        request: Request,
+        app: RAGAgentApp = Depends(get_app),
+        current_user: User = Depends(get_current_user)
 ):
     """Chat with coordinator (requires authentication)."""
     try:
         # Get session ID from cookie or request body (backward compatible)
-        session = get_session(request)
+        session = await get_session(request)
 
         if session:
             # Web: use session from cookie
             from app.api.session_manager import verify_csrf_token
-            if not verify_csrf_token(request):
+            if not await verify_csrf_token(request):
                 raise HTTPException(status_code=403, detail="Invalid CSRF token")
             chat_session_id = session["chat_session_id"]
         elif request_data.session_id:
@@ -422,22 +492,23 @@ async def chat_coordinator(
 
 @app.post(
     "/chat/coordinator/stream",
-    dependencies=[Depends(rate_limit_dependency)]
+    dependencies=[Depends(chat_rate_limit)]
 )
 async def chat_coordinator_stream(
-    request_data: ChatRequest,
-    request: Request,
-    app: RAGAgentApp = Depends(get_app),
-    current_user: User = Depends(get_current_user)
+        request_data: ChatRequest,
+        request: Request,
+        app: RAGAgentApp = Depends(get_app),
+        current_user: User = Depends(get_current_user)
 ):
     """Stream chat with coordinator (requires authentication)."""
+
     async def event_generator():
         try:
-            session = get_session(request)
+            session = await get_session(request)
 
             if session:
                 from app.api.session_manager import verify_csrf_token
-                if not verify_csrf_token(request):
+                if not await verify_csrf_token(request):
                     error_event = {"type": "error", "data": {"message": "Invalid CSRF token"}}
                     yield f"data: {json.dumps(error_event)}\n\n"
                     return
@@ -450,9 +521,9 @@ async def chat_coordinator_stream(
                 return
 
             async for event in app.coordinator_chat_stream(
-                message=request_data.message,
-                user_id=str(current_user.id),
-                session_id=chat_session_id
+                    message=request_data.message,
+                    user_id=str(current_user.id),
+                    session_id=chat_session_id
             ):
                 sse_data = f"data: {json.dumps(event)}\n\n"
                 yield sse_data

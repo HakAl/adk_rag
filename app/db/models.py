@@ -5,6 +5,7 @@ from sqlalchemy import Column, String, Text, DateTime, Integer, ForeignKey, Inde
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
+from datetime import datetime
 import uuid
 
 from app.db.database import Base
@@ -129,3 +130,47 @@ class EmailVerification(Base):
 
     def __repr__(self):
         return f"<EmailVerification(id={self.id}, user_id={self.user_id})>"
+
+class RateLimit(Base):
+    """Rate limiting storage."""
+    __tablename__ = "rate_limits"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    client_id = Column(String, nullable=False, index=True)
+    endpoint = Column(String, nullable=False)
+    request_count = Column(Integer, default=1, nullable=False)
+    window_start = Column(DateTime, default=datetime.utcnow, nullable=False)
+    last_request = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        Index('ix_rate_limits_client_endpoint', 'client_id', 'endpoint'),
+        Index('ix_rate_limits_window_start', 'window_start'),
+    )
+
+class LoginAttempt(Base):
+    """Failed login attempt tracking for lockout."""
+    __tablename__ = "login_attempts"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    client_id = Column(String, nullable=False, index=True)
+    username_or_email = Column(String, nullable=False)
+    failed_count = Column(Integer, default=1, nullable=False)
+    locked_until = Column(DateTime, nullable=True)
+    last_attempt = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        Index('ix_login_attempts_client', 'client_id'),
+        Index('ix_login_attempts_locked_until', 'locked_until'),
+    )
+
+class WebSession(Base):
+    """Browser session storage for cookie-based authentication."""
+    __tablename__ = "web_sessions"
+
+    id = Column(String, primary_key=True)
+    user_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    chat_session_id = Column(String, ForeignKey("sessions.session_id"))  # Links to chat Session
+    csrf_token = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    last_activity = Column(DateTime, default=datetime.utcnow, nullable=False)
+    expires_at = Column(DateTime, nullable=False)

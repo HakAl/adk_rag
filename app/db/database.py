@@ -46,6 +46,24 @@ async def get_db_session():
         finally:
             await session.close()
 
+async def get_db():
+    """
+    FastAPI dependency for database sessions.
+
+    Usage in FastAPI:
+        async def endpoint(db: AsyncSession = Depends(get_db)):
+            # use db
+
+    Usage in non-FastAPI code:
+        async for db in get_db():
+            # use db
+            break
+    """
+    async with async_session_maker() as session:
+        try:
+            yield session
+        finally:
+            await session.close()
 
 async def init_db():
     """Initialize database tables."""
