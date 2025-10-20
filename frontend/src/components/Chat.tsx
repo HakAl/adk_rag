@@ -4,6 +4,7 @@ import { useSessionManager } from '../hooks/useSessionManager';
 import { useMessageManager } from '../hooks/useMessageManager';
 import { useAutoScroll } from '../hooks/useAutoScroll';
 import { useMessagePersistence } from '../hooks/useMessagePersistence';
+import { useAuth } from '../contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { ScrollArea } from './ui/scroll-area';
 import { Loader2, Menu, AlertCircle } from 'lucide-react';
@@ -14,7 +15,8 @@ import { ChatInput } from './ChatInput';
 import { SessionSidebar } from './SessionSidebar';
 
 export const Chat = () => {
-  const userId = 'web_user';
+  const { user } = useAuth();
+  const userId = user?.user_id || 'web_user';
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Session management

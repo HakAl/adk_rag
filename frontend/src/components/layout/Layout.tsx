@@ -1,11 +1,11 @@
-import { ReactNode } from 'react';
 import { Header } from './Header';
 
 interface LayoutProps {
-  children: ReactNode;
+  children: React.ReactNode;
   loading: boolean;
   error: string | null;
   onSettingsClick: () => void;
+  onSettingsClose: () => void;
   settingsOpen: boolean;
 }
 
@@ -14,26 +14,19 @@ export const Layout = ({
   loading,
   error,
   onSettingsClick,
+  onSettingsClose,
   settingsOpen
 }: LayoutProps) => {
   return (
-    <div className="h-screen bg-background flex flex-col">
-      {/* Skip to main content link for keyboard navigation */}
-      <a href="#main-content" className="skip-link">
-        Skip to main content
-      </a>
-
+    <div className="flex flex-col h-screen">
       <Header
         loading={loading}
         error={error}
         onSettingsClick={onSettingsClick}
+        onSettingsClose={onSettingsClose}
         settingsOpen={settingsOpen}
       />
-
-      <main
-        id="main-content"
-        className="flex-1 px-2 sm:px-4 py-2 sm:py-4 min-h-0 overflow-hidden relative"
-      >
+      <main className="flex-1 overflow-hidden p-3 sm:p-4 md:p-6">
         {children}
       </main>
     </div>

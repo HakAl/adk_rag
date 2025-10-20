@@ -95,7 +95,6 @@ class Settings:
     # Session Management
     session_timeout_minutes: int = 60
 
-    email_domain_allowlist: str = ""  # Comma-separated list of allowed email domains
     secret_key: str = "dev-secret-key-change-in-production"  # For future JWT use if needed
 
     # Logging
@@ -196,10 +195,6 @@ class Settings:
             chroma_hnsw_construction_ef=int(os.getenv("CHROMA_HNSW_CONSTRUCTION_EF", "100")),
             chroma_hnsw_search_ef=int(os.getenv("CHROMA_HNSW_SEARCH_EF", "50")),
 
-            email_domain_allowlist=os.getenv(
-                "EMAIL_DOMAIN_ALLOWLIST",
-                "gmail.com,outlook.com,protonmail.com,icloud.com"
-            ),
             secret_key=os.getenv("SECRET_KEY", "dev-secret-key-change-in-production"),
         )
 

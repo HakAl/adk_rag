@@ -1,9 +1,5 @@
-/**
- * Authentication context for React frontend
- *
- * Create as: src/contexts/AuthContext.tsx
- */
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
+import { setCsrfToken } from '../api/chat';
 
 interface User {
   user_id: string;
@@ -23,7 +19,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -67,6 +63,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error(error.detail || 'Login failed');
     }
 
+    // Extract and store CSRF token
+    const csrfToken = response.headers.get('X-CSRF-Token');
+    if (csrfToken) {
+      setCsrfToken(csrfToken);
+    }
+
     const userData = await response.json();
     setUser({
       user_id: userData.user_id,
@@ -102,6 +104,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error('Logout failed:', error);
     } finally {
+      // Clear CSRF token
+      setCsrfToken(null);
       setUser(null);
     }
   };

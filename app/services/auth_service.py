@@ -67,19 +67,6 @@ class AuthService:
         if '@' not in email:
             return False, "Invalid email format"
 
-        domain = email.split('@')[1].lower()
-
-        # Get allowed domains from settings
-        allowed_domains_str = getattr(settings, 'email_domain_allowlist', '')
-        if not allowed_domains_str:
-            logger.warning("EMAIL_DOMAIN_ALLOWLIST not configured, allowing all domains")
-            return True, None
-
-        allowed_domains = [d.strip().lower() for d in allowed_domains_str.split(',')]
-
-        if domain not in allowed_domains:
-            return False, f"Email domain not allowed. Allowed domains: {', '.join(allowed_domains)}"
-
         return True, None
 
     @staticmethod

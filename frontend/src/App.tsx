@@ -24,6 +24,7 @@ function AppContent() {
       loading={loading}
       error={error}
       onSettingsClick={() => setSettingsOpen(true)}
+      onSettingsClose={() => setSettingsOpen(false)}
       settingsOpen={settingsOpen}
     >
       {health && (
