@@ -12,25 +12,30 @@ import { VerifyEmailSentPage } from './pages/VerifyEmailSentPage';
 import { VerifyEmailPage } from './pages/VerifyEmailPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { useSettings } from './hooks/useSettings';
-import { useHealthCheck } from './hooks/useHealthCheck';
+import { useAppMode } from './hooks/useAppMode';
 
 const queryClient = new QueryClient();
 
 function AppContent() {
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const { health, error, loading } = useHealthCheck();
+  const { mode, health, loading, backendWaking } = useAppMode();
   const { settings, updateTheme, updateFontSize, resetSettings } = useSettings();
 
   return (
     <Layout
       loading={loading}
-      error={error}
+      error={null}
       onSettingsClick={() => setSettingsOpen(true)}
       onSettingsClose={() => setSettingsOpen(false)}
       settingsOpen={settingsOpen}
     >
-      {health && (
+      {!loading && (
         <>
+          {backendWaking && (
+            <div className="fixed top-4 right-4 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-4 py-2 rounded-lg shadow-lg text-sm">
+              Backend warming up...
+            </div>
+          )}
           <Chat />
           <SettingsPanel
             settings={settings}
@@ -39,6 +44,7 @@ function AppContent() {
             onReset={resetSettings}
             isOpen={settingsOpen}
             onClose={() => setSettingsOpen(false)}
+            mode={mode}
             health={health}
           />
         </>
