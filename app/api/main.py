@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Depends, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse, RedirectResponse
 from contextlib import asynccontextmanager
 from typing import Optional
 from pydantic import ValidationError
@@ -20,7 +20,9 @@ from app.api.models import (
     RegisterResponse,
     LoginRequest,
     LoginResponse,
-    UserResponse
+    UserResponse,
+    ResendVerificationRequest,
+    VerifyEmailResponse
 )
 from app.utils.input_sanitizer import InputSanitizationError
 from app.db.database import init_db, close_db
@@ -39,8 +41,11 @@ import asyncio
 rag_app: Optional[RAGAgentApp] = None
 auth_service = AuthService()
 rate_limit_store = defaultdict(list)
+resend_limit_store = defaultdict(list)
 RATE_LIMIT_REQUESTS = 60
 RATE_LIMIT_WINDOW = 60
+RESEND_LIMIT_REQUESTS = 3
+RESEND_LIMIT_WINDOW = 3600  # 1 hour
 
 
 @asynccontextmanager
@@ -100,6 +105,20 @@ def check_rate_limit(client_id: str) -> bool:
     return True
 
 
+def check_resend_limit(client_id: str) -> bool:
+    """Check rate limit for resend verification email (3 per hour)."""
+    now = datetime.now()
+    cutoff = now - timedelta(seconds=RESEND_LIMIT_WINDOW)
+    resend_limit_store[client_id] = [
+        timestamp for timestamp in resend_limit_store[client_id]
+        if timestamp > cutoff
+    ]
+    if len(resend_limit_store[client_id]) >= RESEND_LIMIT_REQUESTS:
+        return False
+    resend_limit_store[client_id].append(now)
+    return True
+
+
 async def rate_limit_dependency(request: Request):
     client_id = request.client.host if request.client else "unknown"
     if not check_rate_limit(client_id):
@@ -142,7 +161,7 @@ async def health_check():
     dependencies=[Depends(rate_limit_dependency)]
 )
 async def register(request_data: RegisterRequest):
-    """Register a new user."""
+    """Register a new user and send verification email."""
     try:
         user, error = await auth_service.create_user(
             username=request_data.username,
@@ -159,7 +178,8 @@ async def register(request_data: RegisterRequest):
         return RegisterResponse(
             user_id=str(user.id),
             username=user.username,
-            email=user.email
+            email=user.email,
+            message="Registration successful. Please check your email to verify your account."
         )
 
     except HTTPException:
@@ -169,6 +189,69 @@ async def register(request_data: RegisterRequest):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Registration failed"
+        )
+
+
+@app.get("/verify-email", response_model=VerifyEmailResponse)
+async def verify_email(token: str):
+    """Verify email with token from email link."""
+    try:
+        success, error = await auth_service.verify_email(token)
+
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=error or "Verification failed"
+            )
+
+        # Return simple success page or redirect to frontend
+        return VerifyEmailResponse(
+            message="Email verified successfully! You can now login.",
+            verified=True
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error during email verification: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Verification failed"
+        )
+
+
+@app.post(
+    "/resend-verification",
+    dependencies=[Depends(rate_limit_dependency)]
+)
+async def resend_verification(request: Request, request_data: ResendVerificationRequest):
+    """Resend verification email (rate limited: 3 per hour)."""
+    try:
+        # Check resend-specific rate limit
+        client_id = request.client.host if request.client else "unknown"
+        if not check_resend_limit(client_id):
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many resend requests. Please try again later."
+            )
+
+        success, error = await auth_service.resend_verification_email(request_data.email)
+
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=error or "Failed to resend verification email"
+            )
+
+        return {"message": "Verification email sent. Please check your inbox."}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error resending verification: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to resend verification email"
         )
 
 
@@ -183,7 +266,7 @@ async def login(
     response: Response,
     app: RAGAgentApp = Depends(get_app)
 ):
-    """Login and create session."""
+    """Login and create session (requires verified email)."""
     try:
         # Authenticate user
         user = await auth_service.authenticate_user(
@@ -194,7 +277,7 @@ async def login(
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid username/email or password"
+                detail="Invalid credentials or email not verified"
             )
 
         # Create chat session

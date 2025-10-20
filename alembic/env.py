@@ -12,7 +12,7 @@ from alembic import context
 
 # Import your models
 from app.db.database import Base
-from app.db.models import Session, SessionMessage, User, APIToken
+from app.db.models import Session, SessionMessage, User, APIToken, EmailVerification
 from config import settings
 
 # Alembic Config object

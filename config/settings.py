@@ -97,6 +97,10 @@ class Settings:
 
     secret_key: str = "dev-secret-key-change-in-production"  # For future JWT use if needed
 
+    # Email Configuration
+    resend_api_key: str = ""
+    backend_url: str = "http://localhost:8000"
+
     # Logging
     log_level: str = "INFO"
     log_format: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -196,6 +200,11 @@ class Settings:
             chroma_hnsw_search_ef=int(os.getenv("CHROMA_HNSW_SEARCH_EF", "50")),
 
             secret_key=os.getenv("SECRET_KEY", "dev-secret-key-change-in-production"),
+
+            # Email
+            resend_api_key=os.getenv("RESEND_API_KEY", ""),
+            backend_url=os.getenv("BACKEND_URL", "http://localhost:8000"),
+
         )
 
 

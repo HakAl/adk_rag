@@ -126,6 +126,7 @@ class HealthResponse(BaseModel):
     status: str
     version: str
 
+
 class RegisterRequest(BaseModel):
     """User registration request."""
     username: str = Field(..., min_length=3, max_length=30)
@@ -148,12 +149,14 @@ class RegisterRequest(BaseModel):
             raise ValueError("Invalid email format")
         return v
 
+
 class RegisterResponse(BaseModel):
     """User registration response."""
     user_id: str
     username: str
     email: str
     message: str = "Registration successful"
+
 
 class LoginRequest(BaseModel):
     """User login request."""
@@ -165,12 +168,14 @@ class LoginRequest(BaseModel):
     def validate_username_or_email(cls, v: str) -> str:
         return v.lower().strip()
 
+
 class LoginResponse(BaseModel):
     """User login response."""
     user_id: str
     username: str
     email: str
     message: str = "Login successful"
+
 
 class UserResponse(BaseModel):
     """Current user response."""
@@ -179,3 +184,22 @@ class UserResponse(BaseModel):
     email: str
     is_active: bool
     created_at: str
+
+
+class ResendVerificationRequest(BaseModel):
+    """Request to resend verification email."""
+    email: str = Field(..., min_length=3, max_length=255)
+
+    @field_validator('email')
+    @classmethod
+    def validate_email(cls, v: str) -> str:
+        v = v.lower().strip()
+        if '@' not in v:
+            raise ValueError("Invalid email format")
+        return v
+
+
+class VerifyEmailResponse(BaseModel):
+    """Email verification response."""
+    message: str
+    verified: bool

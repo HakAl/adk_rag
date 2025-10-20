@@ -1,12 +1,13 @@
 import secrets
 import bcrypt
 from typing import Optional, Tuple
-from datetime import datetime
-from sqlalchemy import select
+from datetime import datetime, timedelta
+from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import User, APIToken
+from app.db.models import User, APIToken, EmailVerification
 from app.db.database import get_db_session
+from app.services.email_service import get_email_service
 from config import settings, logger
 
 
@@ -29,6 +30,11 @@ class AuthService:
         """Generate a secure API token."""
         random_part = secrets.token_urlsafe(32)
         return f"vba_{random_part}"
+
+    @staticmethod
+    def generate_verification_token() -> str:
+        """Generate a secure email verification token."""
+        return secrets.token_urlsafe(32)
 
     @staticmethod
     def hash_token(token: str) -> str:
@@ -88,7 +94,7 @@ class AuthService:
             password: str
     ) -> Tuple[Optional[User], Optional[str]]:
         """
-        Create a new user.
+        Create a new user and send verification email.
 
         Returns:
             (user, error_message)
@@ -125,19 +131,141 @@ class AuthService:
             if result.scalar_one_or_none():
                 return None, "Email already exists"
 
-            # Create user
+            # Create user (unverified)
             user = User(
                 username=username,
                 email=email,
                 hashed_password=self.hash_password(password),
-                is_active=True
+                is_active=True,
+                email_verified=False
             )
             db.add(user)
             await db.commit()
             await db.refresh(user)
 
+            # Create verification token
+            verification_token = self.generate_verification_token()
+            token_hash = self.hash_token(verification_token)
+            expires_at = datetime.utcnow() + timedelta(hours=24)
+
+            email_verification = EmailVerification(
+                user_id=user.id,
+                token_hash=token_hash,
+                expires_at=expires_at
+            )
+            db.add(email_verification)
+            await db.commit()
+
             logger.info(f"Created user: {username} ({email})")
+
+            # Send verification email (async, don't wait)
+            email_service = get_email_service()
+            try:
+                await email_service.send_verification_email(
+                    to_email=email,
+                    username=username,
+                    verification_token=verification_token
+                )
+            except Exception as e:
+                logger.error(f"Failed to send verification email: {e}")
+                # Don't fail registration if email fails
+
             return user, None
+
+    async def verify_email(self, token: str) -> Tuple[bool, Optional[str]]:
+        """
+        Verify email with token.
+
+        Returns:
+            (success, error_message)
+        """
+        async with get_db_session() as db:
+            # Get all active verification tokens
+            result = await db.execute(
+                select(EmailVerification).where(
+                    EmailVerification.expires_at > datetime.utcnow()
+                )
+            )
+            verifications = result.scalars().all()
+
+            # Check each token hash
+            for verification in verifications:
+                if self.verify_token_hash(token, verification.token_hash):
+                    # Get user
+                    result = await db.execute(
+                        select(User).where(User.id == verification.user_id)
+                    )
+                    user = result.scalar_one_or_none()
+
+                    if not user:
+                        return False, "User not found"
+
+                    # Mark as verified
+                    user.email_verified = True
+                    user.email_verified_at = datetime.utcnow()
+
+                    # Delete verification token
+                    await db.delete(verification)
+                    await db.commit()
+
+                    logger.info(f"Email verified for user: {user.username}")
+                    return True, None
+
+            return False, "Invalid or expired verification token"
+
+    async def resend_verification_email(self, email: str) -> Tuple[bool, Optional[str]]:
+        """
+        Resend verification email.
+
+        Returns:
+            (success, error_message)
+        """
+        email = email.lower().strip()
+
+        async with get_db_session() as db:
+            # Get user
+            result = await db.execute(
+                select(User).where(User.email == email)
+            )
+            user = result.scalar_one_or_none()
+
+            if not user:
+                return False, "Email not found"
+
+            if user.email_verified:
+                return False, "Email already verified"
+
+            # Delete old verification tokens for this user
+            await db.execute(
+                delete(EmailVerification).where(EmailVerification.user_id == user.id)
+            )
+
+            # Create new verification token
+            verification_token = self.generate_verification_token()
+            token_hash = self.hash_token(verification_token)
+            expires_at = datetime.utcnow() + timedelta(hours=24)
+
+            email_verification = EmailVerification(
+                user_id=user.id,
+                token_hash=token_hash,
+                expires_at=expires_at
+            )
+            db.add(email_verification)
+            await db.commit()
+
+            # Send verification email
+            email_service = get_email_service()
+            success = await email_service.send_verification_email(
+                to_email=email,
+                username=user.username,
+                verification_token=verification_token
+            )
+
+            if success:
+                logger.info(f"Resent verification email to: {email}")
+                return True, None
+            else:
+                return False, "Failed to send verification email"
 
     async def authenticate_user(
             self,
@@ -146,6 +274,7 @@ class AuthService:
     ) -> Optional[User]:
         """
         Authenticate a user by username/email and password.
+        Only allows login if email is verified.
 
         Returns:
             User if authenticated, None otherwise
@@ -170,6 +299,10 @@ class AuthService:
                 return None
 
             if not user.is_active:
+                return None
+
+            # Check if email is verified
+            if not user.email_verified:
                 return None
 
             if not self.verify_password(password, user.hashed_password):

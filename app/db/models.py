@@ -16,13 +16,11 @@ class Session(Base):
     __tablename__ = "sessions"
 
     session_id = Column(String(100), primary_key=True)
-    user_id = Column(String(100), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     agent_type = Column(String(50), nullable=False)  # 'adk' or 'coordinator'
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     last_activity = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     session_metadata = Column(JSONB, nullable=True)
-
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
 
     # Add relationship
     user = relationship("User", back_populates="sessions")
@@ -67,11 +65,17 @@ class User(Base):
     email = Column(String(255), unique=True, nullable=False, index=True)
     hashed_password = Column(String(255), nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
+
+    # Email verification fields
+    email_verified = Column(Boolean, default=False, nullable=False)
+    email_verified_at = Column(DateTime(timezone=True), nullable=True)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     # Relationships
     sessions = relationship("Session", back_populates="user", cascade="all, delete-orphan")
     api_tokens = relationship("APIToken", back_populates="user", cascade="all, delete-orphan")
+    email_verifications = relationship("EmailVerification", back_populates="user", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<User(id={self.id}, username={self.username}, email={self.email})>"
@@ -100,3 +104,28 @@ class APIToken(Base):
 
     def __repr__(self):
         return f"<APIToken(id={self.id}, user_id={self.user_id}, name={self.name})>"
+
+
+class EmailVerification(Base):
+    """Email verification model for storing verification tokens."""
+
+    __tablename__ = "email_verifications"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    token_hash = Column(String(255), unique=True, nullable=False, index=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    # Relationship
+    user = relationship("User", back_populates="email_verifications")
+
+    # Indexes for faster lookups
+    __table_args__ = (
+        Index('idx_email_verifications_user_id', 'user_id'),
+        Index('idx_email_verifications_token_hash', 'token_hash'),
+        Index('idx_email_verifications_expires_at', 'expires_at'),
+    )
+
+    def __repr__(self):
+        return f"<EmailVerification(id={self.id}, user_id={self.user_id})>"
