@@ -5,6 +5,7 @@ import { ThemeSection } from './sections/ThemeSection';
 import { FontSizeSection } from './sections/FontSizeSection';
 import { AboutSection } from './sections/AboutSection';
 import { Theme, FontSize, Settings } from '../../types/settings';
+import { AppMode } from '../../config/mode';
 
 interface HealthResponse {
   status: string;
@@ -19,6 +20,7 @@ export interface SettingsPanelProps {
   isOpen: boolean;
   onClose: () => void;
   health: HealthResponse | null;
+  mode?: AppMode;
 }
 
 export const SettingsPanel = ({
@@ -29,6 +31,7 @@ export const SettingsPanel = ({
   isOpen,
   onClose,
   health,
+  mode,
 }: SettingsPanelProps) => {
   return (
     <SlideInPanel
@@ -50,7 +53,7 @@ export const SettingsPanel = ({
           onFontSizeChange={onFontSizeChange}
         />
 
-        <AboutSection health={health} />
+        <AboutSection health={health} mode={mode} />
       </div>
 
       <SettingsPanelFooter onReset={onReset} />

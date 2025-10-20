@@ -6,19 +6,19 @@ import { SettingsPanel } from './components/SettingsPanel';
 import { Layout } from './components/layout/Layout';
 import { SettingsProvider } from './contexts/SettingsContext';
 import { AuthProvider } from './contexts/AuthContext';
+import { ModeProvider, useMode } from './contexts/ModeContext';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { VerifyEmailSentPage } from './pages/VerifyEmailSentPage';
 import { VerifyEmailPage } from './pages/VerifyEmailPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { useSettings } from './hooks/useSettings';
-import { useAppMode } from './hooks/useAppMode';
 
 const queryClient = new QueryClient();
 
 function AppContent() {
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const { mode, health, loading, backendWaking } = useAppMode();
+  const { mode, health, loading, backendWaking } = useMode();
   const { settings, updateTheme, updateFontSize, resetSettings } = useSettings();
 
   return (
@@ -31,7 +31,7 @@ function AppContent() {
     >
       {!loading && (
         <>
-          {backendWaking && (
+          {mode === 'lite' && backendWaking && (
             <div className="fixed top-4 right-4 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-4 py-2 rounded-lg shadow-lg text-sm">
               Backend warming up...
             </div>
@@ -44,8 +44,8 @@ function AppContent() {
             onReset={resetSettings}
             isOpen={settingsOpen}
             onClose={() => setSettingsOpen(false)}
-            mode={mode}
             health={health}
+            mode={mode}
           />
         </>
       )}
@@ -56,32 +56,34 @@ function AppContent() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <SettingsProvider>
-          <BrowserRouter>
-            <Routes>
-              {/* Public routes */}
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/register" element={<RegisterPage />} />
-              <Route path="/verify-email-sent" element={<VerifyEmailSentPage />} />
-              <Route path="/verify-email" element={<VerifyEmailPage />} />
+      <ModeProvider>
+        <AuthProvider>
+          <SettingsProvider>
+            <BrowserRouter>
+              <Routes>
+                {/* Public routes */}
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/register" element={<RegisterPage />} />
+                <Route path="/verify-email-sent" element={<VerifyEmailSentPage />} />
+                <Route path="/verify-email" element={<VerifyEmailPage />} />
 
-              {/* Protected routes */}
-              <Route
-                path="/chat"
-                element={
-                  <ProtectedRoute>
-                    <AppContent />
-                  </ProtectedRoute>
-                }
-              />
+                {/* Protected routes */}
+                <Route
+                  path="/chat"
+                  element={
+                    <ProtectedRoute>
+                      <AppContent />
+                    </ProtectedRoute>
+                  }
+                />
 
-              {/* Default redirect */}
-              <Route path="/" element={<Navigate to="/chat" replace />} />
-            </Routes>
-          </BrowserRouter>
-        </SettingsProvider>
-      </AuthProvider>
+                {/* Default redirect */}
+                <Route path="/" element={<Navigate to="/chat" replace />} />
+              </Routes>
+            </BrowserRouter>
+          </SettingsProvider>
+        </AuthProvider>
+      </ModeProvider>
     </QueryClientProvider>
   );
 }
