@@ -31,11 +31,7 @@ export const useChatStream = (sessionId: string, userId: string): UseChatStreamR
 
     try {
       await chatApi.streamMessage(
-        {
-          message,
-          user_id: userId,
-          session_id: sessionId,
-        },
+        message,
         (event) => {
           console.log('🎯 Event received:', event.type, event.data);
           switch (event.type) {

@@ -28,7 +28,11 @@ export const StreamingContent = ({ content, isStreaming }: StreamingContentProps
 
   return (
     <div className="markdown-content prose prose-sm sm:prose-base max-w-none">
-      <ReactMarkdown components={markdownComponents}>
+      <ReactMarkdown
+        components={markdownComponents}
+        disallowedElements={['script', 'iframe', 'object', 'embed', 'style']}
+        unwrapDisallowed={true}
+      >
         {content}
       </ReactMarkdown>
     </div>

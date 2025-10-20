@@ -16,6 +16,13 @@ const STORAGE_KEYS = {
   getMessages: (sessionId: string) => `messages_${sessionId}`,
 };
 
+// SECURITY NOTE: We still store session metadata and messages in localStorage
+// for UI convenience, but the actual session authentication is now done via
+// secure HttpOnly cookies that JavaScript cannot access. This means:
+// - localStorage data is for display/caching only
+// - Session ID in localStorage is just the chat session ID, not auth session
+// - Even if XSS occurs, attacker cannot steal the authentication session
+
 export const sessionStorage = {
   getSessions: (): SessionMetadata[] => {
     const data = localStorage.getItem(STORAGE_KEYS.SESSIONS);
@@ -74,11 +81,11 @@ export const useSessionStorage = () => {
   }, []);
 
   const createSession = useCallback(async (): Promise<SessionMetadata> => {
-    // FIXED: Call backend API to create session in database first
+    // Backend creates both auth session (cookie) and chat session (database)
     const response = await chatApi.createSession('web_user');
 
     const newSession: SessionMetadata = {
-      sessionId: response.session_id, // Use backend-generated session ID
+      sessionId: response.session_id, // Chat session ID for display
       title: 'New Chat',
       createdAt: Date.now(),
       lastMessageAt: Date.now(),

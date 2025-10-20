@@ -6,22 +6,22 @@ from pydantic import BaseModel, Field, field_validator
 
 
 class ChatRequest(BaseModel):
-    """Chat request model with validation."""
+    """Chat request model - backwards compatible."""
     message: str = Field(
         ...,
         description="User's message",
         min_length=1,
-        max_length=16000  # Increased to match sanitizer config
+        max_length=16000
     )
-    user_id: str = Field(
-        default="local_user",
+    user_id: Optional[str] = Field(
+        default=None,
         description="User identifier",
         min_length=1,
         max_length=100,
         pattern=r'^[a-zA-Z0-9_\-\.]+$'
     )
-    session_id: str = Field(
-        ...,
+    session_id: Optional[str] = Field(
+        default=None,
         description="Session identifier",
         min_length=1,
         max_length=100,
@@ -41,8 +41,10 @@ class ChatRequest(BaseModel):
 
     @field_validator('user_id')
     @classmethod
-    def validate_user_id(cls, v: str) -> str:
+    def validate_user_id(cls, v: Optional[str]) -> Optional[str]:
         """Validate and sanitize user ID."""
+        if v is None:
+            return None
         from app.utils.input_sanitizer import get_sanitizer, InputSanitizationError
 
         try:
@@ -52,8 +54,10 @@ class ChatRequest(BaseModel):
 
     @field_validator('session_id')
     @classmethod
-    def validate_session_id(cls, v: str) -> str:
+    def validate_session_id(cls, v: Optional[str]) -> Optional[str]:
         """Validate and sanitize session ID."""
+        if v is None:
+            return None
         from app.utils.input_sanitizer import get_sanitizer, InputSanitizationError
 
         try:

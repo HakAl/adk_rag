@@ -38,6 +38,8 @@ export const BotMessageBubble = ({
           <ReactMarkdown
             className="markdown-content text-sm sm:text-base"
             components={markdownComponents}
+            disallowedElements={['script', 'iframe', 'object', 'embed', 'style']}
+            unwrapDisallowed={true}
           >
             {text}
           </ReactMarkdown>

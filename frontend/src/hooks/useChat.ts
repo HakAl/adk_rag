@@ -21,11 +21,7 @@ export const useChat = (sessionId: string | undefined, userId: string) => {
       if (!sessionId) {
         throw new Error('No session available');
       }
-      return chatApi.sendMessage({
-        message,
-        user_id: userId,
-        session_id: sessionId,
-      });
+      return chatApi.sendMessage(message);
     },
     onSuccess: (data, message) => {
       // Update the optimistic message with the actual response

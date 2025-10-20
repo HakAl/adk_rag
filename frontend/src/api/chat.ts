@@ -10,10 +10,16 @@ export interface SessionResponse {
   user_id: string;
 }
 
-export interface ChatRequest {
+// Old interface - DEPRECATED, kept for backwards compatibility
+export interface ChatRequestLegacy {
   message: string;
   user_id: string;
   session_id: string;
+}
+
+// New interface - session comes from cookie
+export interface ChatRequest {
+  message: string;
 }
 
 export interface ChatResponse {
@@ -33,30 +39,64 @@ export interface RoutingInfo {
   reasoning?: string;
 }
 
+// CSRF token storage (not sensitive like session ID)
+let csrfToken: string | null = null;
+
+export const setCsrfToken = (token: string) => {
+  csrfToken = token;
+};
+
+export const getCsrfToken = (): string | null => {
+  return csrfToken;
+};
+
 export const chatApi = {
   createSession: async (userId: string = 'web_user'): Promise<SessionResponse> => {
-    // FIXED: Use coordinator endpoint to match backend flow
     const response = await fetch('/sessions/coordinator', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ user_id: userId }),
+      credentials: 'include', // CRITICAL: Send/receive cookies
     });
 
     if (!response.ok) {
       throw new Error('Failed to create session');
     }
 
+    // Extract CSRF token from response header
+    const token = response.headers.get('X-CSRF-Token');
+    if (token) {
+      setCsrfToken(token);
+    }
+
     return response.json();
   },
 
-  sendMessage: async (request: ChatRequest): Promise<ChatResponse> => {
+  sendMessage: async (message: string): Promise<ChatResponse> => {
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+
+    // Add CSRF token to all state-changing requests
+    const token = getCsrfToken();
+    if (token) {
+      headers['X-CSRF-Token'] = token;
+    }
+
     const response = await fetch('/chat/coordinator', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(request),
+      headers,
+      body: JSON.stringify({ message }), // No user_id/session_id needed
+      credentials: 'include', // CRITICAL: Send cookies
     });
 
     if (!response.ok) {
+      if (response.status === 401) {
+        throw new Error('Session expired. Please refresh the page.');
+      }
+      if (response.status === 403) {
+        throw new Error('Security token invalid. Please refresh the page.');
+      }
       throw new Error('Failed to send message');
     }
 
@@ -64,16 +104,33 @@ export const chatApi = {
   },
 
   streamMessage: async (
-    request: ChatRequest,
+    message: string,
     onEvent: (event: StreamEvent) => void
   ): Promise<void> => {
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+
+    // Add CSRF token
+    const token = getCsrfToken();
+    if (token) {
+      headers['X-CSRF-Token'] = token;
+    }
+
     const response = await fetch('/chat/coordinator/stream', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(request),
+      headers,
+      body: JSON.stringify({ message }), // No user_id/session_id needed
+      credentials: 'include', // CRITICAL: Send cookies
     });
 
     if (!response.ok) {
+      if (response.status === 401) {
+        throw new Error('Session expired. Please refresh the page.');
+      }
+      if (response.status === 403) {
+        throw new Error('Security token invalid. Please refresh the page.');
+      }
       throw new Error('Failed to stream message');
     }
 
@@ -92,17 +149,12 @@ export const chatApi = {
 
         if (done) break;
 
-        // Decode the chunk and add to buffer
         buffer += decoder.decode(value, { stream: true });
         console.log('📦 Buffer now:', buffer.length, 'chars');
 
-        // Split on double newline (SSE event separator)
         const events = buffer.split('\n\n');
-
-        // Keep the last incomplete event in buffer
         buffer = events.pop() || '';
 
-        // Process complete events
         for (const event of events) {
           const lines = event.split('\n');
 
@@ -122,5 +174,19 @@ export const chatApi = {
     } finally {
       reader.releaseLock();
     }
+  },
+
+  logout: async (): Promise<void> => {
+    const response = await fetch('/logout', {
+      method: 'POST',
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to logout');
+    }
+
+    // Clear CSRF token
+    setCsrfToken(null);
   },
 };

@@ -2,26 +2,46 @@ import { Components } from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
+/**
+ * Validates URL to prevent javascript:, data:, and vbscript: protocols
+ */
+const isValidUrl = (url: string | undefined): boolean => {
+  if (!url) return false;
+
+  const trimmed = url.trim().toLowerCase();
+  const dangerousProtocols = ['javascript:', 'data:', 'vbscript:', 'file:', 'about:'];
+
+  return !dangerousProtocols.some(protocol => trimmed.startsWith(protocol));
+};
+
+/**
+ * Sanitizes language string for syntax highlighter
+ */
+const sanitizeLanguage = (lang: string): string => {
+  // Only allow alphanumeric and common language identifiers
+  return lang.replace(/[^a-zA-Z0-9+#-]/g, '');
+};
+
 export const markdownComponents: Components = {
   p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
   code: ({ className, children }) => {
-    // Check if this is a code block (has language class) vs inline code
     const match = /language-(\w+)/.exec(className || '');
 
     if (match) {
-      // Code block with syntax highlighting
+      const sanitizedLang = sanitizeLanguage(match[1]);
+      const codeContent = String(children).replace(/\n$/, '');
+
       return (
         <SyntaxHighlighter
           PreTag="div"
-          language={match[1]}
+          language={sanitizedLang}
           style={vscDarkPlus}
         >
-          {String(children).replace(/\n$/, '')}
+          {codeContent}
         </SyntaxHighlighter>
       );
     }
 
-    // Inline code
     const isInline = !className;
     return isInline ? (
       <code className="bg-primary/20 text-foreground px-1.5 py-0.5 rounded text-sm font-mono border border-primary/30">
@@ -73,15 +93,28 @@ export const markdownComponents: Components = {
       {children}
     </blockquote>
   ),
-  a: ({ href, children }) => (
-    <a
-      href={href}
-      className="text-primary hover:underline focus:underline"
-      target="_blank"
-      rel="noopener noreferrer"
-      aria-label={`${children} (opens in new tab)`}
-    >
-      {children}
-    </a>
-  ),
+  a: ({ href, children }) => {
+    // SECURITY FIX: Validate URL before rendering
+    if (!isValidUrl(href)) {
+      return <span className="text-muted-foreground">{children}</span>;
+    }
+
+    return (
+      <a
+        href={href}
+        className="text-primary hover:underline focus:underline"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label={`${children} (opens in new tab)`}
+      >
+        {children}
+      </a>
+    );
+  },
+  // SECURITY FIX: Disable potentially dangerous elements
+  img: () => null,
+  script: () => null,
+  iframe: () => null,
+  object: () => null,
+  embed: () => null,
 };
