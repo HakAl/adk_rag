@@ -1,5 +1,5 @@
 import { Bot } from 'lucide-react';
-import { RoutingInfo } from '../api/chat';
+import { RoutingInfo } from '../api/backend/chat.ts';
 import { Avatar } from './ChatMessage/Avatar';
 import { RoutingBadge } from './ChatMessage/RoutingBadge';
 import { StreamingContent } from './ChatMessage/StreamingContent';

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Message } from '../api/chat';
-import { chatApi } from '../api/chat';
+import { Message } from '../api/backend/chat.ts';
+import { chatApi } from '../api/backend/chat.ts';
 
 export interface SessionMetadata {
   sessionId: string;

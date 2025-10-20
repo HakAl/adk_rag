@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Message } from '../api/chat';
+import { Message } from '../api/backend/chat.ts';
 import { useEasterEggs } from './useEasterEggs';
 
 interface UseMessageManagerReturn {

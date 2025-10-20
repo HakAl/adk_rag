@@ -1,4 +1,4 @@
-import { RoutingInfo } from '../../api/chat';
+import { RoutingInfo } from '../../api/backend/chat.ts';
 import { formatConfidence } from '../../utils/formatters';
 
 interface RoutingBadgeProps {

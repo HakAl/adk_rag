@@ -1,9 +1,9 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Chat } from '../src/components/Chat';
-import { chatApi } from '../src/api/chat';
+import { chatApi } from '../src/api/backend/chat';
 
-jest.mock('../src/api/chat');
+jest.mock('../src/api/backend/chat');
 
 const createWrapper = () => {
   const queryClient = new QueryClient({

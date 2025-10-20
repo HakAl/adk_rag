@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { chatApi, Message } from '../api/chat';
+import { chatApi, Message } from '../api/backend/chat.ts';
 import { sessionStorage } from './useSessionStorage';
 
 export const useSession = (userId: string = 'web_user') => {

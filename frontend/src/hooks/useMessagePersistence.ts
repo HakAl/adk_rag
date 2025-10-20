@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Message } from '../api/chat';
+import { Message } from '../api/backend/chat.ts';
 import { sessionStorage } from './useSessionStorage';
 
 interface UseMessagePersistenceOptions {

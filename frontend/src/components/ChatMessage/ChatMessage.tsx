@@ -1,4 +1,4 @@
-import { Message } from '../../api/chat';
+import { Message } from '../../api/backend/chat.ts';
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
 import { UserMessageBubble } from './UserMessageBubble';
 import { BotMessageBubble } from './BotMessageBubble';

@@ -1,4 +1,4 @@
-import { Message } from '../api/chat';
+import { Message } from '../api/backend/chat.ts';
 
 export const useEasterEggs = () => {
   const checkEasterEgg = (input: string): Message | null => {

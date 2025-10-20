@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import { setCsrfToken } from '../api/chat';
+import { setCsrfToken } from '../api/backend/chat.ts';
 
 interface User {
   user_id: string;

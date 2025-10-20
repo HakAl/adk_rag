@@ -50,6 +50,10 @@ from app.api.rate_limiter import (
 from app.api.auth_middleware import get_current_user
 from app.services.auth_service import AuthService
 from app.db.models import User
+
+# Import direct chat router
+from app.api.routes.direct_chat import router as direct_chat_router
+
 import json
 import asyncio
 
@@ -191,6 +195,7 @@ app.add_middleware(
     expose_headers=["X-CSRF-Token"],
 )
 
+app.include_router(direct_chat_router)
 
 def get_app() -> RAGAgentApp:
     if rag_app is None:

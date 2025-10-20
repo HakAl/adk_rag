@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { chatApi, Message, RoutingInfo } from '../api/chat';
+import { chatApi, Message, RoutingInfo } from '../api/backend/chat.ts';
 
 interface UseChatStreamResult {
   sendMessage: (message: string) => Promise<void>;

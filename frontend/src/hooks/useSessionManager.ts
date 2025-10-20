@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSessionStorage, sessionStorage } from './useSessionStorage';
-import { Message } from '../api/chat';
+import { Message } from '../api/backend/chat.ts';
 
 interface UseSessionManagerReturn {
   currentSessionId: string;
