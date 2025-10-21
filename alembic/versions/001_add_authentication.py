@@ -45,27 +45,40 @@ def upgrade():
     op.create_index('idx_api_tokens_user_id', 'api_tokens', ['user_id'])
     op.create_index('idx_api_tokens_token_hash', 'api_tokens', ['token_hash'])
 
-    # Delete all existing sessions (clean start)
-    op.execute('DELETE FROM sessions')
+    # Check if sessions table exists, and if so, modify it
+    # If it doesn't exist, skip this step (it will be created by the app on first run)
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
 
-    # Drop the old user_id column (String type)
-    op.drop_column('sessions', 'user_id')
+    if 'sessions' in inspector.get_table_names():
+        # Only modify sessions table if it exists
+        # Check if user_id column exists and is String type
+        columns = {col['name']: col for col in inspector.get_columns('sessions')}
 
-    # Add new user_id column with UUID type
-    op.add_column('sessions', sa.Column('user_id', postgresql.UUID(as_uuid=True), nullable=False))
-    op.create_foreign_key('fk_sessions_user_id', 'sessions', 'users', ['user_id'], ['id'], ondelete='CASCADE')
-    op.create_index('idx_sessions_user_id', 'sessions', ['user_id'])
+        if 'user_id' in columns:
+            # Drop the old user_id column (String type) if it exists
+            op.drop_column('sessions', 'user_id')
+
+        # Add new user_id column with UUID type
+        op.add_column('sessions', sa.Column('user_id', postgresql.UUID(as_uuid=True), nullable=True))
+        op.create_foreign_key('fk_sessions_user_id', 'sessions', 'users', ['user_id'], ['id'], ondelete='CASCADE')
+        op.create_index('idx_sessions_user_id', 'sessions', ['user_id'])
 
 
 def downgrade():
-    # Remove user_id from sessions
-    op.drop_index('idx_sessions_user_id', 'sessions')
-    op.drop_constraint('fk_sessions_user_id', 'sessions', type_='foreignkey')
-    op.drop_column('sessions', 'user_id')
+    # Check if sessions table exists before trying to modify it
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
 
-    # Restore old user_id column
-    op.add_column('sessions', sa.Column('user_id', sa.String(100), nullable=False))
-    op.create_index('idx_sessions_user_id_old', 'sessions', ['user_id'])
+    if 'sessions' in inspector.get_table_names():
+        # Remove user_id from sessions
+        op.drop_index('idx_sessions_user_id', 'sessions')
+        op.drop_constraint('fk_sessions_user_id', 'sessions', type_='foreignkey')
+        op.drop_column('sessions', 'user_id')
+
+        # Restore old user_id column
+        op.add_column('sessions', sa.Column('user_id', sa.String(100), nullable=False))
+        op.create_index('idx_sessions_user_id_old', 'sessions', ['user_id'])
 
     # Drop api_tokens table
     op.drop_index('idx_api_tokens_token_hash', 'api_tokens')
