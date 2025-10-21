@@ -36,8 +36,20 @@ export const SessionSidebar = ({
 
   const handleKeyInputComplete = () => {
     setShowKeyInput(false);
-    // Optionally close sidebar after keys are set
-    // onClose();
+  };
+
+  // X button should be shown when viewing key input AND user has valid keys
+  // (allows escape back to chat history)
+  const showBackButton = shouldShowKeyInput && hasAnyKey();
+
+  const handleHeaderButtonClick = () => {
+    if (showBackButton) {
+      // Return to chat history
+      setShowKeyInput(false);
+    } else {
+      // Close sidebar (mobile only)
+      onClose();
+    }
   };
 
   return (
@@ -52,15 +64,17 @@ export const SessionSidebar = ({
         <h2 className="text-base sm:text-lg font-semibold gradient-text">
           {shouldShowKeyInput ? 'Enter API Keys' : 'Chat History'}
         </h2>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onClose}
-          className="lg:hidden h-9 w-9 sm:h-10 sm:w-10 hover:bg-red-500/20 hover:text-red-400 transition-colors"
-          aria-label="Close sidebar"
-        >
-          <X className="h-5 w-5 sm:h-5 sm:w-5 text-foreground" aria-hidden="true" />
-        </Button>
+        {(showBackButton || !shouldShowKeyInput) && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleHeaderButtonClick}
+            className={`${showBackButton ? '' : 'lg:hidden'} h-9 w-9 sm:h-10 sm:w-10 hover:bg-red-500/20 hover:text-red-400 transition-colors`}
+            aria-label={showBackButton ? 'Back to chat history' : 'Close sidebar'}
+          >
+            <X className="h-5 w-5 sm:h-5 sm:w-5 text-foreground" aria-hidden="true" />
+          </Button>
+        )}
       </div>
 
       {shouldShowKeyInput ? (
