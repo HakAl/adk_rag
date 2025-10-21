@@ -58,8 +58,8 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ModeProvider>
-        <AuthProvider>
-          <ApiKeyProvider>
+        <ApiKeyProvider>
+          <AuthProvider>
             <SettingsProvider>
               <BrowserRouter>
                 <Routes>
@@ -84,8 +84,8 @@ function App() {
                 </Routes>
               </BrowserRouter>
             </SettingsProvider>
-          </ApiKeyProvider>
-        </AuthProvider>
+          </AuthProvider>
+        </ApiKeyProvider>
       </ModeProvider>
     </QueryClientProvider>
   );

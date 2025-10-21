@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { setCsrfToken } from '../api/backend/chat.ts';
+import { useApiKeys } from './ApiKeyContext';
 
 interface User {
   user_id: string;
@@ -22,6 +23,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const { clearKeys } = useApiKeys();
 
   const checkAuth = async () => {
     try {
@@ -116,6 +118,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       // Clear CSRF token
       setCsrfToken(null);
       setUser(null);
+      // Clear API keys from memory (lite mode security)
+      clearKeys();
       // Clear all localStorage to prevent data leakage between users
       localStorage.clear();
     }
