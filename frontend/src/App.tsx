@@ -7,7 +7,7 @@ import { Layout } from './components/layout/Layout';
 import { SettingsProvider } from './contexts/SettingsContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { ModeProvider, useMode } from './contexts/ModeContext';
-import { ApiKeyProvider } from './contexts/ApiKeyContext';
+import { ApiKeyProvider, useApiKeys } from './contexts/ApiKeyContext';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { VerifyEmailSentPage } from './pages/VerifyEmailSentPage';
@@ -21,6 +21,7 @@ function AppContent() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const { mode, health, loading, backendWaking } = useMode();
   const { settings, updateTheme, updateFontSize, resetSettings } = useSettings();
+  const { clearApiKeys, hasApiKeys } = useApiKeys();
 
   return (
     <Layout
@@ -42,6 +43,8 @@ function AppContent() {
             settings={settings}
             onThemeChange={updateTheme}
             onFontSizeChange={updateFontSize}
+            onClearApiKeys={clearApiKeys}
+            hasApiKeys={hasApiKeys()}
             onReset={resetSettings}
             isOpen={settingsOpen}
             onClose={() => setSettingsOpen(false)}

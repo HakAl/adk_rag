@@ -13,5 +13,6 @@ export const useChatStream = (sessionId: string | undefined, userId: string) => 
     return useChatStreamLite(sessionId);
   }
 
-  return useChatStreamFull(sessionId, userId);
+  // Ensure sessionId is defined before passing to full mode
+  return useChatStreamFull(sessionId ?? '', userId);
 };

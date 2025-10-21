@@ -6,12 +6,12 @@ import { useAppMode } from './useAppMode';
  * Smart router hook for chat
  * Automatically routes to full or lite version based on app mode
  */
-export const useChat = (sessionId: string | undefined, userId: string) => {
+export const useChat = (sessionId: string | undefined) => {
   const { mode } = useAppMode();
 
   if (mode === 'lite') {
-    return useChatLite(sessionId, userId);
+    return useChatLite(sessionId);
   }
 
-  return useChatFull(sessionId, userId);
+  return useChatFull(sessionId);
 };

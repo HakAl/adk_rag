@@ -13,7 +13,7 @@ export const useSession = (userId: string = 'web_user') => {
   });
 };
 
-export const useChatFull = (sessionId: string | undefined, userId: string) => {
+export const useChatFull = (sessionId: string | undefined) => {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -54,9 +54,9 @@ export const useChatFull = (sessionId: string | undefined, userId: string) => {
           updated = [...old, newMessage];
         }
 
-        // Save to localStorage
+        // Save to localStorage (full mode uses localStorage)
         if (sessionId) {
-          sessionStorage.saveMessages(sessionId, updated);
+          sessionStorage.saveMessages(sessionId, updated, false);
         }
 
         return updated;
@@ -81,9 +81,9 @@ export const useChatFull = (sessionId: string | undefined, userId: string) => {
             answer: '❌ Failed to get response. Please try again.',
           };
 
-          // Save to localStorage
+          // Save to localStorage (full mode uses localStorage)
           if (sessionId) {
-            sessionStorage.saveMessages(sessionId, updated);
+            sessionStorage.saveMessages(sessionId, updated, false);
           }
 
           return updated;

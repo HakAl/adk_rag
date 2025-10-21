@@ -8,7 +8,7 @@ import { sessionStorage } from './useSessionStorage';
  * Lite mode chat hook - non-streaming mutation
  * Uses direct API calls via coordinator
  */
-export const useChatLite = (sessionId: string | undefined, userId: string) => {
+export const useChatLite = (sessionId: string | undefined) => {
   const queryClient = useQueryClient();
   const { provider, keys } = useApiKeys();
 
@@ -72,9 +72,9 @@ export const useChatLite = (sessionId: string | undefined, userId: string) => {
           updated = [...old, newMessage];
         }
 
-        // Save to localStorage
+        // Save to in-memory storage (lite mode uses in-memory)
         if (sessionId) {
-          sessionStorage.saveMessages(sessionId, updated);
+          sessionStorage.saveMessages(sessionId, updated, true);
         }
 
         return updated;
@@ -99,9 +99,9 @@ export const useChatLite = (sessionId: string | undefined, userId: string) => {
             answer: '❌ Failed to get response. Please try again.',
           };
 
-          // Save to localStorage
+          // Save to in-memory storage (lite mode uses in-memory)
           if (sessionId) {
-            sessionStorage.saveMessages(sessionId, updated);
+            sessionStorage.saveMessages(sessionId, updated, true);
           }
 
           return updated;

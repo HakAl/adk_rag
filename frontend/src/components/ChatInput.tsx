@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { useMessageInput } from '../hooks/useMessageInput';
-import { useTextareaAutoResize } from '../hooks/useTextareaAutoResize';
+import { useTextareaAutoResize } from '../hooks/useTextAreaAutoResize';
 import { MessageTextarea } from './ChatInput/MessageTextarea';
 import { CharacterCounter } from './ChatInput/CharacterCounter';
 import { SubmitButton } from './ChatInput/SubmitButton';
