@@ -9,7 +9,7 @@ import json
 from langchain_chroma import Chroma
 from langchain_community.document_loaders import PyPDFDirectoryLoader, CSVLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain.schema import Document
+from langchain_core.documents import Document
 
 from config import settings, logger
 from app.core.providers import ProviderFactory
