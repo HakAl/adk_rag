@@ -10,7 +10,7 @@ interface UseChatStreamResult {
   streamingContent: string;
 }
 
-export const useChatStream = (sessionId: string, userId: string): UseChatStreamResult => {
+export const useChatStreamFull = (sessionId: string, userId: string): UseChatStreamResult => {
   const queryClient = useQueryClient();
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<Error | null>(null);

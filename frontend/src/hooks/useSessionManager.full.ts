@@ -15,7 +15,7 @@ interface UseSessionManagerReturn {
   updateSessionMetadata: (sessionId: string, messageCount: number, firstQuestion?: string) => void;
 }
 
-export const useSessionManager = (): UseSessionManagerReturn => {
+export const useSessionManagerFull = (): UseSessionManagerReturn => {
   const [currentSessionId, setCurrentSessionId] = useState<string>('');
   const [isInitializing, setIsInitializing] = useState(true);
   const [initError, setInitError] = useState<Error | null>(null);

@@ -13,7 +13,7 @@ export const useSession = (userId: string = 'web_user') => {
   });
 };
 
-export const useChat = (sessionId: string | undefined, userId: string) => {
+export const useChatFull = (sessionId: string | undefined, userId: string) => {
   const queryClient = useQueryClient();
 
   return useMutation({

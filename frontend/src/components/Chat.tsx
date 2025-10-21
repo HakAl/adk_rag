@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useChatStream } from '../hooks/useChatStream';
-import { useSessionManager } from '../hooks/useSessionManager';
+import { useChatStreamFull } from '../hooks/useChatStream.full.ts';
+import { useSessionManagerFull } from '../hooks/useSessionManager.full.ts';
 import { useMessageManager } from '../hooks/useMessageManager';
 import { useAutoScroll } from '../hooks/useAutoScroll';
 import { useMessagePersistence } from '../hooks/useMessagePersistence';
@@ -30,7 +30,7 @@ export const Chat = () => {
     removeSession,
     retryInitialization,
     updateSessionMetadata,
-  } = useSessionManager();
+  } = useSessionManagerFull();
 
   // Message management
   const {
@@ -48,7 +48,7 @@ export const Chat = () => {
     error: streamError,
     routingInfo,
     streamingContent
-  } = useChatStream(currentSessionId, userId);
+  } = useChatStreamFull(currentSessionId, userId);
 
   // Auto-scroll on message changes
   const scrollRef = useAutoScroll({
