@@ -54,6 +54,7 @@ from app.db.models import User
 # Import direct chat router
 from app.api.routes.direct_chat import router as direct_chat_router
 
+import os
 import json
 import asyncio
 
@@ -182,9 +183,15 @@ allowed_origins = [
 
 # Add production origins when deployed
 if settings.environment == "production":
-    # TODO: Add your GitHub Pages URL here when deployed
-    # allowed_origins.append("https://yourusername.github.io")
-    pass
+    # GitHub Pages frontend URL
+    frontend_url = os.getenv("FRONTEND_URL")
+    if frontend_url:
+        allowed_origins.append(frontend_url)
+
+    # Also allow the root GitHub Pages domain (for redirects)
+    allowed_origins.append("https://hakal.github.io")
+
+    print(f"🌍 Production CORS enabled for: {allowed_origins}")
 
 app.add_middleware(
     CORSMiddleware,
