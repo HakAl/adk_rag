@@ -25,6 +25,13 @@ jobs:
 
       - name: Install dependencies
         working-directory: ./frontend
+        env:
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
+          VITE_APP_MODE: lite
+          VITE_APP_TITLE: ${{ vars.VITE_APP_TITLE }}
+          VITE_BASE_PATH: /adk_rag
+          VITE_HCAPTCHA_SITEKEY: ${{ vars.VITE_HCAPTCHA_SITEKEY }}
+          VITE_VERSION: ${{ vars.VITE_VERSION }}
         run: npm ci
 
       - name: Build
