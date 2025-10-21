@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSessionStorage, sessionStorage } from './useSessionStorage';
-import { Message } from '../api/backend/chat.ts';
+import { Message } from '../api/backend/chat';
 
 interface UseSessionManagerReturn {
   currentSessionId: string;
@@ -15,6 +15,9 @@ interface UseSessionManagerReturn {
   updateSessionMetadata: (sessionId: string, messageCount: number, firstQuestion?: string) => void;
 }
 
+/**
+ * Full mode session manager - uses backend sessions with localStorage cache
+ */
 export const useSessionManagerFull = (): UseSessionManagerReturn => {
   const [currentSessionId, setCurrentSessionId] = useState<string>('');
   const [isInitializing, setIsInitializing] = useState(true);
@@ -33,21 +36,21 @@ export const useSessionManagerFull = (): UseSessionManagerReturn => {
     setInitError(null);
 
     try {
-      const storedSessionId = sessionStorage.getActiveSessionId();
-      const storedSessions = sessionStorage.getSessions();
+      const storedSessionId = sessionStorage.getActiveSessionId(false);
+      const storedSessions = sessionStorage.getSessions(false);
 
       if (storedSessionId && storedSessions.find(s => s.sessionId === storedSessionId)) {
         // Load existing session from localStorage
         setCurrentSessionId(storedSessionId);
-        const storedMessages = sessionStorage.getMessages(storedSessionId);
-        // Sort by timestamp to ensure chronological order (oldest first)
+        const storedMessages = sessionStorage.getMessages(storedSessionId, false);
         const sortedMessages = [...storedMessages].sort((a, b) => a.timestamp - b.timestamp);
         queryClient.setQueryData<Message[]>(['messages', storedSessionId], sortedMessages);
       } else {
-        // No valid session - create new one via backend API
+        // Create new backend session
         const newSession = await createSession();
         setCurrentSessionId(newSession.sessionId);
-        sessionStorage.setActiveSessionId(newSession.sessionId);
+        sessionStorage.setActiveSessionId(newSession.sessionId, false);
+        queryClient.setQueryData<Message[]>(['messages', newSession.sessionId], []);
       }
 
       setIsInitializing(false);
@@ -58,7 +61,6 @@ export const useSessionManagerFull = (): UseSessionManagerReturn => {
     }
   }, [createSession, queryClient]);
 
-  // Initialize on mount
   useEffect(() => {
     initializeSession();
   }, [initializeSession]);
@@ -67,7 +69,7 @@ export const useSessionManagerFull = (): UseSessionManagerReturn => {
     try {
       const newSession = await createSession();
       setCurrentSessionId(newSession.sessionId);
-      sessionStorage.setActiveSessionId(newSession.sessionId);
+      sessionStorage.setActiveSessionId(newSession.sessionId, false);
       queryClient.setQueryData<Message[]>(['messages', newSession.sessionId], []);
     } catch (error) {
       console.error('Failed to create new session:', error);
@@ -77,20 +79,18 @@ export const useSessionManagerFull = (): UseSessionManagerReturn => {
 
   const switchSession = useCallback((sessionId: string) => {
     setCurrentSessionId(sessionId);
-    sessionStorage.setActiveSessionId(sessionId);
+    sessionStorage.setActiveSessionId(sessionId, false);
 
-    // Load messages from localStorage and ensure proper order
-    const storedMessages = sessionStorage.getMessages(sessionId);
+    const storedMessages = sessionStorage.getMessages(sessionId, false);
     const sortedMessages = [...storedMessages].sort((a, b) => a.timestamp - b.timestamp);
     queryClient.setQueryData<Message[]>(['messages', sessionId], sortedMessages);
   }, [queryClient]);
 
   const removeSession = useCallback((sessionId: string) => {
-    const currentSessions = sessionStorage.getSessions();
+    const currentSessions = sessionStorage.getSessions(false);
     deleteStoredSession(sessionId);
     queryClient.removeQueries({ queryKey: ['messages', sessionId] });
 
-    // If deleting active session, handle accordingly
     if (sessionId === currentSessionId) {
       const remainingSessions = currentSessions.filter(s => s.sessionId !== sessionId);
 

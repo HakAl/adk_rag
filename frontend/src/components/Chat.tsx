@@ -35,7 +35,6 @@ export const Chat = () => {
   // Message management
   const {
     messages,
-    easterEggMessages,
     addOptimisticMessage,
     clearEasterEggs,
     handleEasterEgg,
@@ -103,6 +102,16 @@ export const Chat = () => {
     // Send message with streaming
     await sendMessage(input);
   };
+
+  // Convert RoutingDecision to RoutingInfo format if needed
+  const convertedRoutingInfo = routingInfo ? {
+    agent: (routingInfo as any).primary_agent || (routingInfo as any).agent,
+    agent_name: ((routingInfo as any).primary_agent || (routingInfo as any).agent || '')
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (l: string) => l.toUpperCase()),
+    confidence: (routingInfo as any).confidence || 0.9,
+    reasoning: (routingInfo as any).reasoning,
+  } : null;
 
   // Show initialization error with retry option
   if (initError) {
@@ -201,7 +210,7 @@ export const Chat = () => {
                     {isStreaming && (
                       <StreamingMessage
                         content={streamingContent}
-                        routingInfo={routingInfo}
+                        routingInfo={convertedRoutingInfo}
                         isStreaming={isStreaming}
                       />
                     )}

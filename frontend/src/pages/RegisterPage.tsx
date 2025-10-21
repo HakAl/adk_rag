@@ -27,7 +27,7 @@ export const RegisterPage = () => {
   const [requireVisibleCaptcha, setRequireVisibleCaptcha] = useState(false);
   const [checkingCaptchaStatus, setCheckingCaptchaStatus] = useState(true);
 
-  const { user, register } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const hcaptchaRef = useRef<HCaptcha>(null);
 

@@ -7,8 +7,6 @@ interface ModeIndicatorProps {
 }
 
 export const ModeIndicator = ({ mode }: ModeIndicatorProps) => {
-  const isFullMode = mode === 'full';
-
   const modeConfig = {
     full: {
       label: 'Full Mode',

@@ -81,8 +81,8 @@ export const useChatStreamLite = (sessionId: string | undefined): UseChatStreamR
               const filtered = old.filter(m => !m.id.startsWith('optimistic-'));
               const updated = [...filtered, finalMessage];
 
-              // Save to localStorage
-              sessionStorage.saveMessages(sessionId, updated);
+              // Save to in-memory storage (lite mode)
+              sessionStorage.saveMessages(sessionId, updated, true);
 
               return updated;
             }

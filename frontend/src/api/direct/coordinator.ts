@@ -7,6 +7,9 @@ import { streamDirectChat as streamAnthropic, classifyMessage as classifyAnthrop
 import { streamDirectChat as streamGoogle, classifyMessage as classifyGoogle } from './google';
 import { getSpecialistPrompt, SpecialistType } from '../../config/specialists';
 
+// Re-export RoutingDecision for use in other files
+export type { RoutingDecision };
+
 export type Provider = 'anthropic' | 'google';
 
 export interface CoordinatorOptions {
