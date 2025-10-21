@@ -7,6 +7,7 @@ import { Layout } from './components/layout/Layout';
 import { SettingsProvider } from './contexts/SettingsContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { ModeProvider, useMode } from './contexts/ModeContext';
+import { ApiKeyProvider } from './contexts/ApiKeyContext';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { VerifyEmailSentPage } from './pages/VerifyEmailSentPage';
@@ -58,30 +59,32 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <ModeProvider>
         <AuthProvider>
-          <SettingsProvider>
-            <BrowserRouter>
-              <Routes>
-                {/* Public routes */}
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/register" element={<RegisterPage />} />
-                <Route path="/verify-email-sent" element={<VerifyEmailSentPage />} />
-                <Route path="/verify-email" element={<VerifyEmailPage />} />
+          <ApiKeyProvider>
+            <SettingsProvider>
+              <BrowserRouter>
+                <Routes>
+                  {/* Public routes */}
+                  <Route path="/login" element={<LoginPage />} />
+                  <Route path="/register" element={<RegisterPage />} />
+                  <Route path="/verify-email-sent" element={<VerifyEmailSentPage />} />
+                  <Route path="/verify-email" element={<VerifyEmailPage />} />
 
-                {/* Protected routes */}
-                <Route
-                  path="/chat"
-                  element={
-                    <ProtectedRoute>
-                      <AppContent />
-                    </ProtectedRoute>
-                  }
-                />
+                  {/* Protected routes */}
+                  <Route
+                    path="/chat"
+                    element={
+                      <ProtectedRoute>
+                        <AppContent />
+                      </ProtectedRoute>
+                    }
+                  />
 
-                {/* Default redirect */}
-                <Route path="/" element={<Navigate to="/chat" replace />} />
-              </Routes>
-            </BrowserRouter>
-          </SettingsProvider>
+                  {/* Default redirect */}
+                  <Route path="/" element={<Navigate to="/chat" replace />} />
+                </Routes>
+              </BrowserRouter>
+            </SettingsProvider>
+          </ApiKeyProvider>
         </AuthProvider>
       </ModeProvider>
     </QueryClientProvider>
