@@ -6,9 +6,11 @@ google-cloud-aiplatform>=1.40.0
 # LLM and embeddings
 litellm>=1.30.0
 langchain>=0.1.0
+langchain-core>=0.1.0
 langchain-community>=0.0.20
 langchain-chroma>=0.1.0
 langchain-ollama>=0.1.0
+langchain-text-splitters>=0.0.1
 
 # llama.cpp support
 llama-cpp-python>=0.2.0
