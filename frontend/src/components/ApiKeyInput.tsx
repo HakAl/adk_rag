@@ -12,7 +12,7 @@ interface ApiKeyInputProps {
 }
 
 export const ApiKeyInput = ({ onComplete }: ApiKeyInputProps) => {
-  const { keys, setApiKeys } = useApiKeys();
+  const { keys, setApiKeys, setProvider } = useApiKeys();
 
   const [anthropicKey, setAnthropicKey] = useState(keys.anthropic || '');
   const [googleKey, setGoogleKey] = useState(keys.google || '');
@@ -83,8 +83,21 @@ export const ApiKeyInput = ({ onComplete }: ApiKeyInputProps) => {
       google: googleKey.trim() || undefined,
     });
 
-    // Store provider preference in sessionStorage
-    sessionStorage.setItem('preferredProvider', selectedProvider);
+    // Auto-detect provider based on which keys are set
+    let providerToUse: Provider;
+    if (hasBothKeys) {
+      // Both keys set - use user's selection
+      providerToUse = selectedProvider;
+    } else if (hasGoogleKey) {
+      // Only Google key set - use Google
+      providerToUse = 'google';
+    } else {
+      // Only Anthropic key set - use Anthropic
+      providerToUse = 'anthropic';
+    }
+
+    // Set provider in context
+    setProvider(providerToUse);
 
     if (onComplete) {
       onComplete();

@@ -4,6 +4,7 @@ import { coordinateRequest, RoutingDecision } from '../api/direct/coordinator';
 import { useApiKeys } from '../contexts/ApiKeyContext';
 import { Message } from '../api/backend/chat';
 import { sessionStorage } from './useSessionStorage';
+import { formatApiError } from '../utils/errorFormatter';
 
 interface UseChatStreamResult {
   sendMessage: (message: string) => Promise<void>;
@@ -60,7 +61,10 @@ export const useChatStreamLite = (sessionId: string | undefined): UseChatStreamR
           setStreamingContent(fullResponseRef.current);
         },
         onError: (errorMsg) => {
-          throw new Error(errorMsg);
+          // Format error message for user-friendly display
+          const formattedError = formatApiError(errorMsg);
+          setError(new Error(formattedError));
+          setIsStreaming(false);
         },
         onComplete: () => {
           // Create final message and add to query cache
@@ -91,7 +95,10 @@ export const useChatStreamLite = (sessionId: string | undefined): UseChatStreamR
         },
       });
     } catch (err) {
-      setError(err instanceof Error ? err : new Error('Request failed'));
+      // This catch handles errors from coordinateRequest itself (not from onError callback)
+      const errorMessage = err instanceof Error ? err.message : 'Request failed';
+      const formattedError = formatApiError(errorMessage);
+      setError(new Error(formattedError));
       setIsStreaming(false);
       setStreamingContent('');
       setRoutingInfo(null);

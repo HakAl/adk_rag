@@ -39,15 +39,19 @@ export interface RoutingInfo {
   reasoning?: string;
 }
 
-// CSRF token storage (not sensitive like session ID)
-let csrfToken: string | null = null;
+// CSRF token storage - persisted in sessionStorage
+const CSRF_TOKEN_KEY = 'csrf_token';
 
-export const setCsrfToken = (token: string) => {
-  csrfToken = token;
+export const setCsrfToken = (token: string | null) => {
+  if (token) {
+    sessionStorage.setItem(CSRF_TOKEN_KEY, token);
+  } else {
+    sessionStorage.removeItem(CSRF_TOKEN_KEY);
+  }
 };
 
 export const getCsrfToken = (): string | null => {
-  return csrfToken;
+  return sessionStorage.getItem(CSRF_TOKEN_KEY);
 };
 
 export const chatApi = {

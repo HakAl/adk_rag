@@ -2,7 +2,7 @@
  * Direct Anthropic API integration (bypasses coordinator)
  */
 
-import { getCsrfToken } from '../chat';
+import { getCsrfToken } from '../backend/chat';
 
 export interface StreamEvent {
   type: 'content' | 'done' | 'error';

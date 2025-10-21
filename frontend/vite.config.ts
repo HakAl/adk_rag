@@ -36,6 +36,10 @@ export default defineConfig({
         target: 'http://localhost:8000',
         changeOrigin: true,
       },
+      '/chat/direct': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
       // Session endpoints
       '/sessions': {
         target: 'http://localhost:8000',

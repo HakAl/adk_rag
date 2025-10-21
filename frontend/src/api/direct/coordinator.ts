@@ -49,25 +49,31 @@ export const coordinateRequest = async (
     // Step 2: If general_chat, skip coordination and stream directly
     if (routing.primary_agent === 'general_chat') {
       const streamFn = provider === 'anthropic' ? streamAnthropic : streamGoogle;
+
+      let hasError = false;
       await streamFn(message, {
         apiKey,
         onEvent: (event) => {
           if (event.type === 'content' && onContent) {
             onContent(event.data.content);
-          } else if (event.type === 'error' && onError) {
-            onError(event.data.message);
+          } else if (event.type === 'error') {
+            hasError = true;
+            if (onError) {
+              onError(event.data.message);
+            }
           }
         },
       });
 
-      if (onComplete) {
+      // Only call onComplete if there was no error
+      if (!hasError && onComplete) {
         onComplete();
       }
       return;
     }
 
     // Step 3: Execute primary specialist
-    await executeSpecialist(
+    const primarySuccess = await executeSpecialist(
       message,
       routing.primary_agent as SpecialistType,
       provider,
@@ -77,9 +83,14 @@ export const coordinateRequest = async (
       'Primary'
     );
 
+    // Stop if primary specialist failed
+    if (!primarySuccess) {
+      return;
+    }
+
     // Step 4: Execute parallel specialists sequentially
     for (const parallelAgent of routing.parallel_agents) {
-      await executeSpecialist(
+      const success = await executeSpecialist(
         message,
         parallelAgent as SpecialistType,
         provider,
@@ -88,9 +99,14 @@ export const coordinateRequest = async (
         onError,
         capitalizeFirst(parallelAgent)
       );
+
+      // Stop if any specialist fails
+      if (!success) {
+        return;
+      }
     }
 
-    // Step 5: Complete
+    // Step 5: Complete (only if no errors)
     if (onComplete) {
       onComplete();
     }
@@ -104,6 +120,7 @@ export const coordinateRequest = async (
 
 /**
  * Execute a single specialist
+ * Returns true if successful, false if error occurred
  */
 async function executeSpecialist(
   message: string,
@@ -113,7 +130,7 @@ async function executeSpecialist(
   onContent: ((content: string, specialist?: string) => void) | undefined,
   onError: ((error: string) => void) | undefined,
   specialistLabel: string
-): Promise<void> {
+): Promise<boolean> {
   // Get specialist prompt
   const systemPrompt = getSpecialistPrompt(specialistType);
 
@@ -128,16 +145,22 @@ async function executeSpecialist(
   // Stream response
   const streamFn = provider === 'anthropic' ? streamAnthropic : streamGoogle;
 
+  let hasError = false;
   await streamFn(specializedMessage, {
     apiKey,
     onEvent: (event) => {
       if (event.type === 'content' && onContent) {
         onContent(event.data.content, specialistLabel);
-      } else if (event.type === 'error' && onError) {
-        onError(`${specialistLabel}: ${event.data.message}`);
+      } else if (event.type === 'error') {
+        hasError = true;
+        if (onError) {
+          onError(`${specialistLabel}: ${event.data.message}`);
+        }
       }
     },
   });
+
+  return !hasError;
 }
 
 /**
