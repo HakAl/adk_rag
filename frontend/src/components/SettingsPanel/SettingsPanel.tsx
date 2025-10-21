@@ -3,6 +3,7 @@ import { SettingsPanelHeader } from './SettingsPanelHeader';
 import { SettingsPanelFooter } from './SettingsPanelFooter';
 import { ThemeSection } from './sections/ThemeSection';
 import { FontSizeSection } from './sections/FontSizeSection';
+import { ClearApiKeysSection } from './sections/ClearApiKeysSection';
 import { AboutSection } from './sections/AboutSection';
 import { Theme, FontSize, Settings } from '../../types/settings';
 import { AppMode } from '../../config/mode';
@@ -16,6 +17,8 @@ export interface SettingsPanelProps {
   settings: Settings;
   onThemeChange: (theme: Theme) => void;
   onFontSizeChange: (fontSize: FontSize) => void;
+  onClearApiKeys: () => void;
+  hasApiKeys: boolean;
   onReset: () => void;
   isOpen: boolean;
   onClose: () => void;
@@ -27,6 +30,8 @@ export const SettingsPanel = ({
   settings,
   onThemeChange,
   onFontSizeChange,
+  onClearApiKeys,
+  hasApiKeys,
   onReset,
   isOpen,
   onClose,
@@ -52,6 +57,10 @@ export const SettingsPanel = ({
           currentFontSize={settings.fontSize}
           onFontSizeChange={onFontSizeChange}
         />
+
+        {mode === 'lite' && (
+          <ClearApiKeysSection onClearKeys={onClearApiKeys} hasKeys={hasApiKeys} />
+        )}
 
         <AboutSection health={health} mode={mode} />
       </div>
