@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "homepage": "https://hakal.github.io/adk_rag/",
   "dependencies": {
     "@hcaptcha/react-hcaptcha": "^1.10.1",
     "@tanstack/react-query": "^5.0.0",
@@ -28,6 +29,8 @@
     "dev:lite": "vite --mode lite --config vite.config.lite.ts",
     "build": "tsc && vite build",
     "build:lite": "tsc && vite build --mode lite --config vite.config.lite.ts",
+    "predeploy": "npm run build:lite",
+    "deploy": "gh-pages -d dist",
     "preview": "vite preview",
     "test": "vitest"
   },
@@ -40,6 +43,7 @@
     "@vitejs/plugin-react": "^4.3.0",
     "@vitest/ui": "^1.6.0",
     "autoprefixer": "^10.4.21",
+    "gh-pages": "^6.3.0",
     "jsdom": "^24.0.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.1",
