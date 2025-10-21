@@ -316,7 +316,7 @@ export const RegisterPage = () => {
 
             <div className="text-center">
               <Link
-                to="/login"
+                to="/sign-in"
                 className="text-sm text-primary hover:underline"
                 tabIndex={loading ? -1 : 0}
               >

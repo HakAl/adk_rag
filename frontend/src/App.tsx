@@ -64,8 +64,8 @@ function App() {
               <BrowserRouter>
                 <Routes>
                   {/* Public routes */}
-                  <Route path="/login" element={<LoginPage />} />
-                  <Route path="/register" element={<RegisterPage />} />
+                  <Route path="/sign-in" element={<LoginPage />} />
+                  <Route path="/sign-up" element={<RegisterPage />} />
                   <Route path="/verify-email-sent" element={<VerifyEmailSentPage />} />
                   <Route path="/verify-email" element={<VerifyEmailPage />} />
 

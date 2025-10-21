@@ -33,7 +33,7 @@ export const VerifyEmailPage = () => {
         setStatus('success');
         // Redirect to login after 3 seconds
         setTimeout(() => {
-          navigate('/login', {
+          navigate('/sign-in', {
             state: { message: 'Email verified! Please sign in.' }
           });
         }, 3000);
@@ -108,7 +108,7 @@ export const VerifyEmailPage = () => {
             <p className="text-sm text-muted-foreground">
               Redirecting to login...
             </p>
-            <Link to="/login">
+            <Link to="/sign-in">
               <Button className="glass-button">
                 Go to Login
               </Button>
@@ -182,7 +182,7 @@ export const VerifyEmailPage = () => {
 
             <div className="text-center pt-4">
               <Link
-                to="/login"
+                to="/sign-in"
                 className="text-sm text-primary hover:underline"
               >
                 Back to login

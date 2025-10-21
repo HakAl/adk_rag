@@ -129,7 +129,7 @@ export const LoginPage = () => {
 
             <div className="text-center">
               <Link
-                to="/register"
+                to="/sign-up"
                 className="text-sm text-primary hover:underline"
                 tabIndex={loading ? -1 : 0}
               >

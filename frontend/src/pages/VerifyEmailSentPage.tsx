@@ -135,7 +135,7 @@ export const VerifyEmailSentPage = () => {
 
           <div className="text-center pt-4">
             <Link
-              to="/login"
+              to="/sign-in"
               className="text-sm text-primary hover:underline"
             >
               Back to login
