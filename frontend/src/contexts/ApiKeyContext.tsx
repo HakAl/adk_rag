@@ -14,9 +14,11 @@ interface ApiKeyContextValue {
   setAnthropicKey: (key: string) => void;
   setGoogleKey: (key: string) => void;
   clearKeys: () => void;
+  clearApiKeys: () => void; // Alias for clearKeys
   hasAnthropicKey: () => boolean;
   hasGoogleKey: () => boolean;
   hasAnyKey: () => boolean;
+  hasApiKeys: () => boolean; // Alias for hasAnyKey
 }
 
 const ApiKeyContext = createContext<ApiKeyContextValue | undefined>(undefined);
@@ -86,9 +88,11 @@ export const ApiKeyProvider = ({ children }: ApiKeyProviderProps) => {
     setAnthropicKey,
     setGoogleKey,
     clearKeys,
+    clearApiKeys: clearKeys, // Alias
     hasAnthropicKey,
     hasGoogleKey,
     hasAnyKey,
+    hasApiKeys: hasAnyKey, // Alias
   };
 
   return (
