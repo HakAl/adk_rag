@@ -64,7 +64,7 @@ function App() {
         <ApiKeyProvider>
           <AuthProvider>
             <SettingsProvider>
-              <BrowserRouter basename="/adk_rag">
+              <BrowserRouter>
                 <Routes>
                   {/* Public routes */}
                   <Route path="/sign-in" element={<LoginPage />} />
