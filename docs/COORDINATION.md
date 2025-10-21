@@ -2,7 +2,7 @@
 
 ## Overview
 
-The VIBE Agent uses a **router-coordinator-specialist** architecture to intelligently handle user requests with cloud-first execution and automatic fallback.
+The VIBE Code uses a **router-coordinator-specialist** architecture to intelligently handle user requests with cloud-first execution and automatic fallback.
 
 ---
 

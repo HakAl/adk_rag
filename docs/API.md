@@ -1,6 +1,6 @@
 # REST API Reference
 
-FastAPI-based REST API for programmatic access to VIBE Agent.
+FastAPI-based REST API for programmatic access to VIBE Code.
 
 ## Starting the API
 

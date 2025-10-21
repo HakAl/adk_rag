@@ -50,7 +50,7 @@ export const LoginPage = () => {
             Sign in
           </CardTitle>
           <p className="text-center text-muted-foreground text-sm">
-            Access your VIBE Agent
+            Access your VIBE Code
           </p>
         </CardHeader>
 

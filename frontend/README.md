@@ -1,6 +1,6 @@
-# VIBE Agent Frontend
+# VIBE Code Frontend
 
-React + TypeScript frontend for the VIBE Agent API.
+React + TypeScript frontend for the VIBE Code API.
 
 ## Setup
 

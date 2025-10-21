@@ -1,6 +1,6 @@
 # Getting Started with VIBE Agent
 
-Quick guide to get up and running with VIBE Agent in minutes.
+Quick guide to get up and running with VIBE Code in minutes.
 
 ## Prerequisites
 

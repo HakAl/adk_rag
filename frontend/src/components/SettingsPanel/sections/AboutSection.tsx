@@ -14,7 +14,7 @@ export const AboutSection = ({ health }: AboutSectionProps) => {
     <Collapsible title="About">
       <div className="space-y-2 text-sm text-muted-foreground">
         <p>
-          <strong className="text-foreground">VIBE Agent</strong>
+          <strong className="text-foreground">VIBE Code</strong>
         </p>
         <p>Version: {import.meta.env.VITE_VERSION || '0.1.0'}</p>
         {health && (

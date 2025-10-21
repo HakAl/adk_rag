@@ -9,7 +9,7 @@ class EmailService:
     def __init__(self):
         self.api_key = settings.resend_api_key
         self.from_email = "onboarding@resend.dev"  # Resend default domain
-        self.from_name = "VIBE App Team"
+        self.from_name = "VIBE Code App Team"
         self.base_url = "https://api.resend.com"
 
     async def send_verification_email(
@@ -66,7 +66,7 @@ class EmailService:
         </head>
         <body>
             <div class="container">
-                <h2>Welcome to VIBE App, {username}!</h2>
+                <h2>Welcome to VIBE Code App, {username}!</h2>
                 <p>Thanks for signing up. Please verify your email address to get started.</p>
                 <a href="{verification_url}" class="button">Verify Email Address</a>
                 <p>Or copy and paste this link into your browser:</p>
@@ -81,7 +81,7 @@ class EmailService:
         """
 
         text_content = f"""
-        Welcome to VIBE App, {username}!
+        Welcome to VIBE Code App, {username}!
 
         Thanks for signing up. Please verify your email address to get started.
 

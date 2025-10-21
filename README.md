@@ -1,4 +1,4 @@
-# VIBE Agent
+# VIBE Code
 
 An intelligent code assistant that analyzes, generates, and validates code using advanced AI — running locally for privacy or in the cloud for speed.
 

@@ -16,7 +16,7 @@ class Settings:
     """Application settings."""
 
     # Application
-    app_name: str = "VIBE Agent"
+    app_name: str = "VIBE Code"
     version: str = "1.0.0"
     debug: bool = False
     environment: str = "development"
