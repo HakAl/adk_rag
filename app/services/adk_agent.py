@@ -22,7 +22,7 @@ class ADKAgentService:
 
     def __init__(
         self,
-        rag_service: RAGService,
+        rag_service: Optional[RAGService],
         rag_anthropic_service: Optional[RAGAnthropicService] = None,
         rag_google_service: Optional[RAGGoogleService] = None
     ):
@@ -30,10 +30,21 @@ class ADKAgentService:
         Initialize ADK agent service.
 
         Args:
-            rag_service: RAGService instance (Ollama/local)
+            rag_service: RAGService instance (Ollama/local) - can be None in cloud mode
             rag_anthropic_service: Optional RAGAnthropicService instance
             rag_google_service: Optional RAGGoogleService instance
         """
+        # Cloud mode check
+        if settings.provider_type == 'cloud':
+            logger.info("Cloud mode: ADK agent not initialized")
+            self.rag_service = None
+            self.rag_anthropic_service = None
+            self.rag_google_service = None
+            self.session_service = None
+            self.agent = None
+            self.runner = None
+            return
+
         self.rag_service = rag_service
         self.rag_anthropic_service = rag_anthropic_service
         self.rag_google_service = rag_google_service
@@ -209,6 +220,9 @@ class ADKAgentService:
         Returns:
             Session ID
         """
+        if self.session_service is None:
+            raise RuntimeError("ADK agent not available in cloud mode")
+
         session_id = str(uuid.uuid4())
 
         await self.session_service.create_session(
@@ -238,6 +252,9 @@ class ADKAgentService:
         Returns:
             Assistant's response
         """
+        if self.runner is None:
+            raise RuntimeError("ADK agent not available in cloud mode")
+
         logger.info(f"Processing chat message for session {session_id}")
 
         # FIXED: Ensure session exists before processing
@@ -285,6 +302,9 @@ class ADKAgentService:
             session_id: Session identifier
             user_id: User identifier
         """
+        if self.session_service is None:
+            return
+
         exists = await self.session_service.session_exists(session_id)
         if not exists:
             logger.warning(

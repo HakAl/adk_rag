@@ -1,9 +1,14 @@
 """
 Ollama provider implementation.
 """
+from typing import TYPE_CHECKING
+
 import litellm
-from langchain_ollama import OllamaEmbeddings
 from .base import ModelProvider, EmbeddingProvider, ChatProvider
+
+# Conditional import - only loaded when Ollama provider is actually used
+if TYPE_CHECKING:
+    from langchain_ollama import OllamaEmbeddings
 
 
 class OllamaEmbeddingProvider(EmbeddingProvider):
@@ -16,6 +21,9 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
 
     def get_embeddings(self):
         if self._embeddings is None:
+            # Import only when actually needed
+            from langchain_ollama import OllamaEmbeddings
+
             self._embeddings = OllamaEmbeddings(
                 model=self.model,
                 base_url=self.base_url

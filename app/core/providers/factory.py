@@ -19,7 +19,7 @@ class ProviderFactory:
         Create a model provider instance.
 
         Args:
-            provider_type: Type of provider ('ollama' or 'llamacpp')
+            provider_type: Type of provider ('ollama', 'llamacpp', or 'cloud')
             **kwargs: Provider-specific configuration
 
         Returns:
@@ -34,10 +34,15 @@ class ProviderFactory:
             return ProviderFactory._create_ollama(**kwargs)
         elif provider_type in ['llamacpp', 'llama.cpp', 'llama_cpp']:
             return ProviderFactory._create_llamacpp(**kwargs)
+        elif provider_type == 'cloud':
+            raise ValueError(
+                "Cloud mode does not use local providers. "
+                "Use cloud services (Anthropic/Google) directly."
+            )
         else:
             raise ValueError(
                 f"Unsupported provider type: {provider_type}. "
-                f"Supported types: 'ollama', 'llamacpp'"
+                f"Supported types: 'ollama', 'llamacpp', 'cloud'"
             )
 
     @staticmethod

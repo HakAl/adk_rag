@@ -43,6 +43,10 @@ class RAGAgentApp:
                 logger.info("Continuing without local vector store - using cloud providers only")
                 self.vector_store = None
                 self.rag_service = None
+        elif settings.provider_type == 'cloud':
+            logger.info("Cloud-only mode: local vector store disabled")
+            self.vector_store = None
+            self.rag_service = None
         else:
             logger.info(f"Provider type '{settings.provider_type}' - skipping vector store initialization")
 
@@ -67,33 +71,58 @@ class RAGAgentApp:
 
         # Verify we have at least one service available
         if not any([self.rag_service, self.rag_anthropic_service, self.rag_google_service]):
-            logger.error("No RAG services available! Set ANTHROPIC_API_KEY or GOOGLE_API_KEY")
-            raise RuntimeError("No RAG services configured")
+            if settings.provider_type == 'cloud':
+                logger.warning("Cloud mode: No RAG services available yet. Waiting for user-supplied API keys.")
+            else:
+                logger.error("No RAG services available! Set ANTHROPIC_API_KEY or GOOGLE_API_KEY")
+                raise RuntimeError("No RAG services configured")
 
-        self.adk_agent = ADKAgentService(
-            rag_service=self.rag_service,
-            rag_anthropic_service=self.rag_anthropic_service,
-            rag_google_service=self.rag_google_service
-        )
-        logger.info("✓ ADK Agent service initialized")
+        # Initialize ADK agent only for local providers
+        self.adk_agent = None
+        if settings.provider_type in ['ollama', 'llamacpp']:
+            self.adk_agent = ADKAgentService(
+                rag_service=self.rag_service,
+                rag_anthropic_service=self.rag_anthropic_service,
+                rag_google_service=self.rag_google_service
+            )
+            logger.info("✓ ADK Agent service initialized")
+        else:
+            logger.info("Cloud mode: ADK Agent not initialized (cloud services only)")
 
         # Router is optional - only for local routing
         self.router = None
-        try:
-            from app.services.router import RouterService
-            self.router = RouterService()
+        if settings.provider_type in ['ollama', 'llamacpp']:
+            try:
+                from app.services.router import RouterService
+                self.router = RouterService()
 
-            if self.router.enabled:
-                logger.info("✓ Router service enabled")
-            else:
-                logger.info("✗ Router service disabled")
-        except Exception as e:
-            logger.info(f"Router service not available: {e}")
+                if self.router.enabled:
+                    logger.info("✓ Router service enabled")
+                else:
+                    logger.info("✗ Router service disabled")
+            except Exception as e:
+                logger.info(f"Router service not available: {e}")
+        else:
+            logger.info("Cloud mode: Router service disabled")
 
         self.coordinator_agent = None
         if settings.use_coordinator_agent:
-            if not self.router or not self.router.enabled:
-                logger.warning("Coordinator agent requires router - disabling coordinator")
+            if settings.provider_type == 'cloud' or (not self.router or not self.router.enabled):
+                if settings.provider_type == 'cloud':
+                    logger.info("Cloud mode: Using coordinator agent without router")
+                    try:
+                        self.coordinator_agent = CoordinatorAgentService(
+                            rag_service=self.rag_service,
+                            router_service=None,
+                            rag_anthropic_service=self.rag_anthropic_service,
+                            rag_google_service=self.rag_google_service
+                        )
+                        logger.info("✓ Coordinator agent enabled (cloud mode)")
+                    except Exception as e:
+                        logger.error(f"Failed to initialize coordinator agent: {e}")
+                        logger.warning("Continuing without coordinator agent")
+                else:
+                    logger.warning("Coordinator agent requires router - disabling coordinator")
             else:
                 try:
                     self.coordinator_agent = CoordinatorAgentService(
@@ -121,6 +150,8 @@ class RAGAgentApp:
         Returns:
             Session ID
         """
+        if not self.adk_agent:
+            raise RuntimeError("ADK agent not available in cloud mode")
         return await self.adk_agent.create_session(user_id)
 
     async def create_coordinator_session(self, user_id: str = "local_user") -> str:
@@ -135,8 +166,12 @@ class RAGAgentApp:
         """
         if self.coordinator_agent:
             return await self.coordinator_agent.create_session(user_id)
+        elif self.adk_agent:
+            return await self.adk_agent.create_session(user_id)
         else:
-            return await self.create_session(user_id)
+            # Cloud mode without coordinator - generate session ID
+            import uuid
+            return str(uuid.uuid4())
 
     async def chat(
         self,
@@ -155,6 +190,9 @@ class RAGAgentApp:
         Returns:
             Response string (backwards compatible)
         """
+        if not self.adk_agent:
+            raise RuntimeError("Chat endpoint not available in cloud mode. Use coordinator chat.")
+
         self._last_routing = None
         if self.router and self.router.enabled:
             try:
@@ -193,8 +231,11 @@ class RAGAgentApp:
             Response string (matches existing chat format)
         """
         if not self.coordinator_agent:
-            logger.warning("Coordinator agent not available, falling back to regular chat")
-            return await self.chat(message, user_id, session_id)
+            if self.adk_agent:
+                logger.warning("Coordinator agent not available, falling back to regular chat")
+                return await self.chat(message, user_id, session_id)
+            else:
+                raise RuntimeError("No chat services available. Please configure API keys.")
 
         logger.info(f"Processing coordinator chat for session {session_id}")
 
@@ -282,6 +323,9 @@ class RAGAgentApp:
             stats["chat_model"] = settings.chat_model
         elif settings.provider_type == "llamacpp":
             stats["chat_model"] = settings.llamacpp_chat_model_path
+        elif settings.provider_type == "cloud":
+            stats["embedding_model"] = None
+            stats["chat_model"] = None
 
         if self.router and self.router.enabled:
             stats["router_model"] = settings.router_model_path

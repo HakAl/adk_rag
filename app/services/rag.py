@@ -12,16 +12,26 @@ from app.core.providers import ProviderFactory
 class RAGService:
     """Service for answering queries using RAG."""
 
-    def __init__(self, vector_store: VectorStoreService, provider_type: Optional[str] = None):
+    def __init__(self, vector_store: Optional[VectorStoreService], provider_type: Optional[str] = None):
         """
         Initialize RAG service.
 
         Args:
-            vector_store: VectorStoreService instance
+            vector_store: VectorStoreService instance (can be None in cloud mode)
             provider_type: Provider type override (defaults to settings.provider_type)
         """
         self.vector_store = vector_store
         provider_type = provider_type or settings.provider_type
+
+        # Cloud mode - no local RAG
+        if provider_type == 'cloud':
+            logger.info("Cloud mode: local RAG disabled")
+            self.chat_provider = None
+            return
+
+        # Validate vector store for local modes
+        if vector_store is None:
+            raise ValueError("Vector store required for local RAG service")
 
         # Create provider based on type
         if provider_type == 'ollama':
@@ -69,6 +79,12 @@ class RAGService:
         Returns:
             Tuple of (answer, sources)
         """
+        if self.chat_provider is None:
+            return "❌ Local RAG not available in cloud mode", None
+
+        if self.vector_store is None:
+            return "❌ Vector store not initialized", None
+
         logger.info(f"Processing query: '{question}'")
 
         # Retrieve relevant documents

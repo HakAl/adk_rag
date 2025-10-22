@@ -48,7 +48,7 @@ class Settings:
     chroma_hnsw_m: int = 16
 
     # Provider Configuration
-    provider_type: str = "ollama"  # 'ollama' or 'llamacpp'
+    provider_type: str = "cloud"  # 'ollama', 'llamacpp', or 'cloud'
 
     # Ollama Configuration
     embedding_model: str = "nomic-embed-text"
@@ -142,21 +142,29 @@ class Settings:
     @classmethod
     def from_env(cls) -> 'Settings':
         """Create settings from environment variables."""
+        provider_type = os.getenv("PROVIDER_TYPE", "cloud")
+
         # Get models base directory
         models_base_dir = Path(os.getenv("MODELS_BASE_DIR", "./models"))
 
-        # Get relative paths and join with base directory
-        llamacpp_embedding_path = os.getenv("LLAMACPP_EMBEDDING_MODEL_PATH")
-        llamacpp_chat_path = os.getenv("LLAMACPP_CHAT_MODEL_PATH")
-        router_model_path = os.getenv("ROUTER_MODEL_PATH")
+        # Only process local model paths if not in cloud mode
+        llamacpp_embedding_path = None
+        llamacpp_chat_path = None
+        router_model_path = None
 
-        # Join with base directory if paths are provided
-        if llamacpp_embedding_path:
-            llamacpp_embedding_path = str(models_base_dir / llamacpp_embedding_path)
-        if llamacpp_chat_path:
-            llamacpp_chat_path = str(models_base_dir / llamacpp_chat_path)
-        if router_model_path:
-            router_model_path = str(models_base_dir / router_model_path)
+        if provider_type in ['ollama', 'llamacpp']:
+            # Get relative paths and join with base directory
+            llamacpp_embedding_path = os.getenv("LLAMACPP_EMBEDDING_MODEL_PATH")
+            llamacpp_chat_path = os.getenv("LLAMACPP_CHAT_MODEL_PATH")
+            router_model_path = os.getenv("ROUTER_MODEL_PATH")
+
+            # Join with base directory if paths are provided
+            if llamacpp_embedding_path:
+                llamacpp_embedding_path = str(models_base_dir / llamacpp_embedding_path)
+            if llamacpp_chat_path:
+                llamacpp_chat_path = str(models_base_dir / llamacpp_chat_path)
+            if router_model_path:
+                router_model_path = str(models_base_dir / router_model_path)
 
         return cls(
             debug=os.getenv("DEBUG", "false").lower() == "true",
@@ -169,7 +177,7 @@ class Settings:
             database_echo=os.getenv("DATABASE_ECHO", "false").lower() == "true",
 
             # Provider
-            provider_type=os.getenv("PROVIDER_TYPE", "ollama"),
+            provider_type=provider_type,
 
             # Ollama
             embedding_model=os.getenv("EMBEDDING_MODEL", "nomic-embed-text"),

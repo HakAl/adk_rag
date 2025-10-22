@@ -1,12 +1,15 @@
 """
 Vector store service for managing document embeddings and retrieval.
 """
-from typing import List, Optional, Tuple, Dict, Any
+from typing import List, Optional, Tuple, Dict, Any, TYPE_CHECKING
 from pathlib import Path
 import time
 import json
 
-from langchain_chroma import Chroma
+# Conditional imports - only loaded when actually used (not in cloud mode)
+if TYPE_CHECKING:
+    from langchain_chroma import Chroma
+
 from langchain_community.document_loaders import PyPDFDirectoryLoader, CSVLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
@@ -26,6 +29,14 @@ class VectorStoreService:
             provider_type: Provider type override (defaults to settings.provider_type)
         """
         provider_type = provider_type or settings.provider_type
+
+        # Cloud mode - no local vector store
+        if provider_type == 'cloud':
+            logger.info("Cloud mode: vector store disabled")
+            self.provider = None
+            self.embeddings = None
+            self.vectorstore = None
+            return
 
         # Create provider based on type
         if provider_type == 'ollama':
@@ -77,6 +88,9 @@ class VectorStoreService:
         """Initialize or load existing vector store."""
         try:
             if self._store_exists():
+                # Import Chroma only when actually needed (not in cloud mode)
+                from langchain_chroma import Chroma
+
                 logger.info(f"Loading existing vector store from {settings.vector_store_dir}")
                 self.vectorstore = Chroma(
                     persist_directory=str(settings.vector_store_dir),
@@ -237,6 +251,9 @@ class VectorStoreService:
         Returns:
             Tuple of (num_documents, num_chunks, filenames)
         """
+        if self.vectorstore is None and self.embeddings is None:
+            raise RuntimeError("Vector store not available in cloud mode")
+
         start_time = time.time()
         data_dir = directory or settings.data_dir
 
@@ -285,6 +302,9 @@ class VectorStoreService:
         logger.info(f"Created {len(splits)} text chunks")
 
         if overwrite or not self._store_exists():
+            # Import Chroma only when actually needed
+            from langchain_chroma import Chroma
+
             logger.info("Creating new vector store with optimized index settings...")
             self.vectorstore = Chroma.from_documents(
                 documents=splits,
@@ -367,6 +387,17 @@ class VectorStoreService:
 
         k = k or settings.retrieval_k
         return self.vectorstore.as_retriever(search_kwargs={"k": k})
+
+    def get_collection(self):
+        """
+        Get the Chroma collection.
+
+        Returns:
+            Chroma collection object
+        """
+        if self.vectorstore is None:
+            raise ValueError("Vector store not initialized")
+        return self.vectorstore._collection
 
     def get_stats(self) -> dict:
         """Get vector store statistics."""
