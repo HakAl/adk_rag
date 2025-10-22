@@ -4,11 +4,18 @@
     <meta charset="utf-8">
     <title>Redirecting...</title>
     <script>
-      // Redirect to index.html with the path as a query parameter
-      const path = window.location.pathname.slice(1);
+      // Redirect to index.html with the path preserved
+      const basePath = '/adk_rag/';
+      let path = window.location.pathname;
+
+      // Remove the base path if it's already in the URL
+      if (path.startsWith(basePath)) {
+        path = path.slice(basePath.length);
+      }
+
       window.location.replace(
         window.location.origin +
-        '/adk_rag/' +
+        basePath +
         '?redirect=' +
         encodeURIComponent(path)
       );
