@@ -8,7 +8,7 @@ class EmailService:
 
     def __init__(self):
         self.api_key = settings.resend_api_key
-        self.from_email = "onboarding@resend.dev"  # Resend default domain
+        self.from_email = "noreply@vibecoder.buzz"  # Custom verified domain
         self.from_name = "VIBE Code App Team"
         self.base_url = "https://api.resend.com"
 

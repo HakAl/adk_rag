@@ -9,10 +9,11 @@ export const detectMode = async (): Promise<AppMode> => {
     return 'lite';
   }
 
-  // Check if on GitHub Pages
-  if (window.location.hostname.includes('github.io')) {
-    return 'lite';
-  }
+// Check if on custom domain or GitHub Pages
+if (window.location.hostname.includes('github.io') ||
+    window.location.hostname.includes('vibecoder.buzz')) {
+  return 'lite';
+}
 
   // Try health check with timeout to wake backend and detect mode
   try {

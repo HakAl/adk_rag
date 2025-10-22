@@ -212,12 +212,18 @@ allowed_origins = [
 
 # Add production origins when deployed
 if settings.environment == "production":
-    # GitHub Pages frontend URL
+    # Custom domain frontend URL
     frontend_url = os.getenv("FRONTEND_URL")
     if frontend_url:
         allowed_origins.append(frontend_url)
 
-    # Also allow the root GitHub Pages domain (for redirects)
+    # Allow both www and non-www versions of custom domain
+    allowed_origins.extend([
+        "https://vibecoder.buzz",
+        "https://www.vibecoder.buzz"
+    ])
+
+    # Also allow the old GitHub Pages domain (for transition period)
     allowed_origins.append("https://hakal.github.io")
 
     print(f"🌍 Production CORS enabled for: {allowed_origins}")
