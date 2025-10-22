@@ -23,6 +23,7 @@ export const RegisterPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
+  const [errorType, setErrorType] = useState<'general' | 'email_exists' | 'username_exists'>('general');
   const [loading, setLoading] = useState(false);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [requireVisibleCaptcha, setRequireVisibleCaptcha] = useState(false);
@@ -69,11 +70,13 @@ export const RegisterPage = () => {
     console.error('hCaptcha error:', err);
     setCaptchaToken(null);
     setError('CAPTCHA verification failed. Please try again.');
+    setErrorType('general');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setErrorType('general');
 
     // Validate passwords match
     if (password !== confirmPassword) {
@@ -131,15 +134,28 @@ export const RegisterPage = () => {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.detail || 'Registration failed');
+        const errorMessage = errorData.detail || 'Registration failed';
+
+        // Detect error type for better UX
+        if (errorMessage.toLowerCase().includes('email') && errorMessage.toLowerCase().includes('already')) {
+          setErrorType('email_exists');
+          setError(errorMessage);
+        } else if (errorMessage.toLowerCase().includes('username') && errorMessage.toLowerCase().includes('already')) {
+          setErrorType('username_exists');
+          setError(errorMessage);
+        } else {
+          setErrorType('general');
+          setError(errorMessage);
+        }
+
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();
       // Navigate to verification page
       navigate('/verify-email-sent', { state: { email: result.email } });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Registration failed');
-
+      // Error already set above
       // Reset CAPTCHA on error
       if (hcaptchaRef.current) {
         hcaptchaRef.current.resetCaptcha();
@@ -174,9 +190,36 @@ export const RegisterPage = () => {
           <form className="space-y-4" onSubmit={handleSubmit}>
             {error && (
               <Card className="glass-card border-red-500/50">
-                <CardContent className="p-3 flex items-start gap-2">
-                  <AlertCircle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
-                  <p className="text-sm text-red-500">{error}</p>
+                <CardContent className="p-3 space-y-2">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-red-500">{error}</p>
+                  </div>
+
+                  {errorType === 'email_exists' && (
+                    <div className="text-sm space-x-2 pt-1">
+                      <Link
+                        to="/sign-in"
+                        className="text-primary hover:underline font-medium"
+                      >
+                        Sign in instead
+                      </Link>
+                      <span className="text-muted-foreground">or</span>
+                      <Link
+                        to="/verify-email-sent"
+                        state={{ email }}
+                        className="text-primary hover:underline font-medium"
+                      >
+                        Resend verification
+                      </Link>
+                    </div>
+                  )}
+
+                  {errorType === 'username_exists' && (
+                    <p className="text-sm text-muted-foreground pt-1">
+                      Please choose a different username
+                    </p>
+                  )}
                 </CardContent>
               </Card>
             )}

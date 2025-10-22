@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate, Navigate, Link } from 'react-router-dom';
+import { useNavigate, Navigate, Link, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import { Loader2, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { Loader2, Eye, EyeOff, AlertCircle, CheckCircle } from 'lucide-react';
 
 export const LoginPage = () => {
   const [usernameOrEmail, setUsernameOrEmail] = useState('');
@@ -14,6 +14,10 @@ export const LoginPage = () => {
   const [loading, setLoading] = useState(false);
   const { user, login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Check for success message from email verification
+  const successMessage = location.state?.message;
 
   // Redirect if already logged in
   if (user && !loading) {
@@ -31,8 +35,12 @@ export const LoginPage = () => {
     } catch (err: any) {
       // Check if error is due to unverified email
       if (err.isEmailNotVerified) {
+        // Redirect to verification page with helpful context
         navigate('/verify-email-sent', {
-          state: { email: usernameOrEmail.includes('@') ? usernameOrEmail : '' }
+          state: {
+            email: usernameOrEmail.includes('@') ? usernameOrEmail : '',
+            fromLogin: true
+          }
         });
       } else {
         setError(err instanceof Error ? err.message : 'Login failed');
@@ -56,6 +64,15 @@ export const LoginPage = () => {
 
         <CardContent>
           <form className="space-y-4" onSubmit={handleSubmit}>
+            {successMessage && (
+              <Card className="glass-card border-green-500/50">
+                <CardContent className="p-3 flex items-start gap-2">
+                  <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-green-500">{successMessage}</p>
+                </CardContent>
+              </Card>
+            )}
+
             {error && (
               <Card className="glass-card border-red-500/50">
                 <CardContent className="p-3 flex items-start gap-2">
@@ -127,13 +144,20 @@ export const LoginPage = () => {
               )}
             </Button>
 
-            <div className="text-center">
+            <div className="text-center space-y-2">
               <Link
                 to="/sign-up"
-                className="text-sm text-primary hover:underline"
+                className="text-sm text-primary hover:underline block"
                 tabIndex={loading ? -1 : 0}
               >
                 Don't have an account? Register
+              </Link>
+              <Link
+                to="/verify-email-sent"
+                className="text-xs text-muted-foreground hover:text-primary hover:underline block"
+                tabIndex={loading ? -1 : 0}
+              >
+                Need to verify your email?
               </Link>
             </div>
           </form>
