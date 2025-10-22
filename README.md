@@ -4,6 +4,8 @@ An intelligent code assistant that analyzes, generates, and validates code using
 
 **Built with Google's Agent Development Kit (ADK)**, featuring intelligent routing, parallel specialist execution, and automatic provider fallback for rock-solid reliability.
 
+Check out the cloud only lite version at: https://vibecoder.buzz/
+
 ## Key Features
 
 - 🤖 **Intelligent Routing**: Automatically selects the right specialist (validator, generator, analyst) for each request
