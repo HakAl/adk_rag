@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Loader2, CheckCircle, XCircle, Mail } from 'lucide-react';
+import { getApiUrl } from '../api/config';
 
 export const VerifyEmailPage = () => {
   const [searchParams] = useSearchParams();
@@ -25,7 +26,7 @@ export const VerifyEmailPage = () => {
 
   const verifyToken = async (verificationToken: string) => {
     try {
-      const response = await fetch(`/verify-email?token=${encodeURIComponent(verificationToken)}`, {
+      const response = await fetch(getApiUrl(`/verify-email?token=${encodeURIComponent(verificationToken)}`), {
         credentials: 'include'
       });
 
@@ -56,7 +57,7 @@ export const VerifyEmailPage = () => {
     setResendLoading(true);
 
     try {
-      const response = await fetch('/resend-verification', {
+      const response = await fetch(getApiUrl('/resend-verification'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

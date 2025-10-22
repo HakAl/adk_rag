@@ -1,3 +1,5 @@
+import { getApiUrl } from '../config';
+
 export interface Message {
   id: string;
   question: string;
@@ -56,7 +58,7 @@ export const getCsrfToken = (): string | null => {
 
 export const chatApi = {
   createSession: async (userId: string = 'web_user'): Promise<SessionResponse> => {
-    const response = await fetch('/sessions/coordinator', {
+    const response = await fetch(getApiUrl('/sessions/coordinator'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ user_id: userId }),
@@ -87,7 +89,7 @@ export const chatApi = {
       headers['X-CSRF-Token'] = token;
     }
 
-    const response = await fetch('/chat/coordinator', {
+    const response = await fetch(getApiUrl('/chat/coordinator'), {
       method: 'POST',
       headers,
       body: JSON.stringify({ message }), // No user_id/session_id needed
@@ -121,7 +123,7 @@ export const chatApi = {
       headers['X-CSRF-Token'] = token;
     }
 
-    const response = await fetch('/chat/coordinator/stream', {
+    const response = await fetch(getApiUrl('/chat/coordinator/stream'), {
       method: 'POST',
       headers,
       body: JSON.stringify({ message }), // No user_id/session_id needed
@@ -181,7 +183,7 @@ export const chatApi = {
   },
 
   logout: async (): Promise<void> => {
-    const response = await fetch('/logout', {
+    const response = await fetch(getApiUrl('/logout'), {
       method: 'POST',
       credentials: 'include',
     });

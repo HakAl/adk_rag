@@ -6,6 +6,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Loader2, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import HCaptcha from '@hcaptcha/react-hcaptcha';
+import { getApiUrl } from '../api/config';
 
 
 const HCAPTCHA_SITEKEY = import.meta.env.VITE_HCAPTCHA_SITEKEY;
@@ -35,7 +36,7 @@ export const RegisterPage = () => {
   useEffect(() => {
     const checkCaptchaStatus = async () => {
       try {
-        const response = await fetch('/register/captcha-status');
+        const response = await fetch(getApiUrl('/register/captcha-status'));
         if (response.ok) {
           const data = await response.json();
           setRequireVisibleCaptcha(data.captcha_required);
@@ -106,7 +107,7 @@ export const RegisterPage = () => {
     setLoading(true);
 
     try {
-      const response = await fetch('/register', {
+      const response = await fetch(getApiUrl('/register'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

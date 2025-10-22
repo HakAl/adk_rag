@@ -3,6 +3,7 @@
  */
 
 import { getCsrfToken } from '../backend/chat';
+import { getApiUrl } from '../config';
 
 export interface StreamEvent {
   type: 'content' | 'done' | 'error';
@@ -43,7 +44,7 @@ export const streamDirectChat = async (
     headers['X-API-Key'] = options.apiKey;
   }
 
-  const response = await fetch('/chat/direct/anthropic/stream', {
+  const response = await fetch(getApiUrl('/chat/direct/anthropic/stream'), {
     method: 'POST',
     headers,
     body: JSON.stringify({ message }),
@@ -125,7 +126,7 @@ export const classifyMessage = async (
     headers['X-API-Key'] = apiKey;
   }
 
-  const response = await fetch('/chat/direct/anthropic/classify', {
+  const response = await fetch(getApiUrl('/chat/direct/anthropic/classify'), {
     method: 'POST',
     headers,
     body: JSON.stringify({ message }),

@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Mail, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
+import { getApiUrl } from '../api/config';
 
 export const VerifyEmailSentPage = () => {
   const location = useLocation();
@@ -29,7 +30,7 @@ export const VerifyEmailSentPage = () => {
     setLoading(true);
 
     try {
-      const response = await fetch('/resend-verification', {
+      const response = await fetch(getApiUrl('/resend-verification'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
