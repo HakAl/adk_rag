@@ -4,13 +4,10 @@ Main application class integrating all services with optional routing and coordi
 from typing import Optional, Dict, Any, AsyncGenerator
 
 from config import settings, logger
-from app.services.vector_store import VectorStoreService
-from app.services.rag import RAGService
 from app.services.rag_anthropic import RAGAnthropicService
 from app.services.rag_google import RAGGoogleService
 from app.services.adk_agent import ADKAgentService
 from app.services.coordinator_agent import CoordinatorAgentService
-from app.services.router import RouterService
 
 
 class RAGAgentApp:
@@ -20,9 +17,34 @@ class RAGAgentApp:
         """Initialize application with all services."""
         logger.info("Initializing RAG Agent Application")
 
-        self.vector_store = VectorStoreService()
+        # Only initialize vector store if we have local models configured
+        self.vector_store = None
+        self.rag_service = None
 
-        self.rag_service = RAGService(self.vector_store)
+        if settings.provider_type in ['ollama', 'llamacpp']:
+            try:
+                # Check if provider is actually available
+                if settings.provider_type == 'ollama':
+                    logger.info("Attempting to initialize Ollama-based vector store...")
+                elif settings.provider_type == 'llamacpp' and settings.llamacpp_embedding_model_path:
+                    logger.info("Attempting to initialize llama.cpp-based vector store...")
+                else:
+                    logger.warning("Local provider configured but models not available, skipping vector store")
+
+                if settings.provider_type == 'ollama' or (settings.provider_type == 'llamacpp' and settings.llamacpp_embedding_model_path):
+                    from app.services.vector_store import VectorStoreService
+                    from app.services.rag import RAGService
+
+                    self.vector_store = VectorStoreService()
+                    self.rag_service = RAGService(self.vector_store)
+                    logger.info("Vector store and RAG service enabled")
+            except Exception as e:
+                logger.warning(f"Vector store initialization failed: {e}")
+                logger.info("Continuing without local vector store - using cloud providers only")
+                self.vector_store = None
+                self.rag_service = None
+        else:
+            logger.info(f"Provider type '{settings.provider_type}' - skipping vector store initialization")
 
         self.rag_anthropic_service = None
         self.rag_google_service = None
@@ -31,7 +53,7 @@ class RAGAgentApp:
             import os
             if os.getenv("ANTHROPIC_API_KEY"):
                 self.rag_anthropic_service = RAGAnthropicService(self.vector_store)
-                logger.info("Anthropic RAG service enabled")
+                logger.info("✓ Anthropic RAG service enabled")
         except Exception as e:
             logger.warning(f"Anthropic RAG service not available: {e}")
 
@@ -39,28 +61,39 @@ class RAGAgentApp:
             import os
             if os.getenv("GOOGLE_API_KEY"):
                 self.rag_google_service = RAGGoogleService(self.vector_store)
-                logger.info("Google RAG service enabled")
+                logger.info("✓ Google RAG service enabled")
         except Exception as e:
             logger.warning(f"Google RAG service not available: {e}")
+
+        # Verify we have at least one service available
+        if not any([self.rag_service, self.rag_anthropic_service, self.rag_google_service]):
+            logger.error("No RAG services available! Set ANTHROPIC_API_KEY or GOOGLE_API_KEY")
+            raise RuntimeError("No RAG services configured")
 
         self.adk_agent = ADKAgentService(
             rag_service=self.rag_service,
             rag_anthropic_service=self.rag_anthropic_service,
             rag_google_service=self.rag_google_service
         )
+        logger.info("✓ ADK Agent service initialized")
 
-        self.router = RouterService()
+        # Router is optional - only for local routing
+        self.router = None
+        try:
+            from app.services.router import RouterService
+            self.router = RouterService()
 
-        if self.router.enabled:
-            logger.info("✓ Router service enabled - requests will be analyzed before processing")
-        else:
-            logger.info("✗ Router service disabled - requests go directly to agent")
+            if self.router.enabled:
+                logger.info("✓ Router service enabled")
+            else:
+                logger.info("✗ Router service disabled")
+        except Exception as e:
+            logger.info(f"Router service not available: {e}")
 
         self.coordinator_agent = None
         if settings.use_coordinator_agent:
-            if not self.router.enabled:
-                logger.error("Coordinator agent requires router to be enabled (ROUTER_MODEL_PATH must be set)")
-                logger.warning("Coordinator agent disabled - router not available")
+            if not self.router or not self.router.enabled:
+                logger.warning("Coordinator agent requires router - disabling coordinator")
             else:
                 try:
                     self.coordinator_agent = CoordinatorAgentService(
@@ -69,14 +102,14 @@ class RAGAgentApp:
                         rag_anthropic_service=self.rag_anthropic_service,
                         rag_google_service=self.rag_google_service
                     )
-                    logger.info("✓ Coordinator agent enabled with router-based specialist delegation")
+                    logger.info("✓ Coordinator agent enabled")
                 except Exception as e:
                     logger.error(f"Failed to initialize coordinator agent: {e}")
                     logger.warning("Continuing without coordinator agent")
         else:
             logger.info("✗ Coordinator agent disabled")
 
-        logger.info("RAG Agent Application initialized successfully")
+        logger.info("🚀 RAG Agent Application initialized successfully")
 
     async def create_session(self, user_id: str = "local_user") -> str:
         """
@@ -123,7 +156,7 @@ class RAGAgentApp:
             Response string (backwards compatible)
         """
         self._last_routing = None
-        if self.router.enabled:
+        if self.router and self.router.enabled:
             try:
                 self._last_routing = self.router.route(message)
                 logger.info(
@@ -192,7 +225,6 @@ class RAGAgentApp:
         """
         if not self.coordinator_agent:
             logger.warning("Coordinator agent not available for streaming")
-            # Yield error event
             yield {
                 "type": "error",
                 "data": {"message": "Coordinator agent not available"}
@@ -224,18 +256,25 @@ class RAGAgentApp:
         Returns:
             Stats dictionary
         """
-        try:
-            collection = self.vector_store.get_collection()
-            doc_count = collection.count()
-        except Exception:
-            doc_count = 0
+        doc_count = 0
+        if self.vector_store:
+            try:
+                collection = self.vector_store.get_collection()
+                doc_count = collection.count()
+            except Exception:
+                pass
 
         stats = {
             "provider_type": settings.provider_type,
-            "vector_store_collection": settings.collection_name,
+            "vector_store_collection": settings.collection_name if self.vector_store else None,
             "document_count": doc_count,
-            "router_enabled": self.router.enabled,
-            "coordinator_enabled": self.coordinator_agent is not None
+            "router_enabled": self.router.enabled if self.router else False,
+            "coordinator_enabled": self.coordinator_agent is not None,
+            "services": {
+                "local_rag": self.rag_service is not None,
+                "anthropic": self.rag_anthropic_service is not None,
+                "google": self.rag_google_service is not None
+            }
         }
 
         if settings.provider_type == "ollama":
@@ -244,10 +283,9 @@ class RAGAgentApp:
         elif settings.provider_type == "llamacpp":
             stats["chat_model"] = settings.llamacpp_chat_model_path
 
-        if self.router.enabled:
+        if self.router and self.router.enabled:
             stats["router_model"] = settings.router_model_path
 
-        # FIXED: Use specialist_manager.get_status() instead of specialist_agents
         if self.coordinator_agent:
             specialist_status = self.coordinator_agent.get_specialist_status()
             stats["coordinator_specialists"] = {

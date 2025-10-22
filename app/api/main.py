@@ -137,24 +137,53 @@ async def chat_rate_limit(request: Request, current_user: User = Depends(get_cur
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global rag_app
+    logger.info("=" * 60)
     logger.info("Starting FastAPI application")
-    await init_db()
-    rag_app = RAGAgentApp()
+    logger.info(f"Environment: {settings.environment}")
+    logger.info(f"Provider Type: {settings.provider_type}")
+    logger.info("=" * 60)
+
+    try:
+        logger.info("Initializing database...")
+        await init_db()
+        logger.info("✓ Database initialized successfully")
+    except Exception as e:
+        logger.error(f"✗ Database initialization failed: {e}", exc_info=True)
+        raise
+
+    try:
+        logger.info("Initializing RAG Agent Application...")
+        rag_app = RAGAgentApp()
+        logger.info("✓ RAG Agent Application initialized successfully")
+    except Exception as e:
+        logger.error(f"✗ RAG Agent Application initialization failed: {e}", exc_info=True)
+        raise
 
     # Start background cleanup tasks
     async def cleanup_loop():
         while True:
             await asyncio.sleep(3600)  # Run every hour
-            await cleanup_expired_sessions()
-            await cleanup_old_rate_limits()
-            await cleanup_old_registration_attempts()
+            try:
+                await cleanup_expired_sessions()
+                await cleanup_old_rate_limits()
+                await cleanup_old_registration_attempts()
+            except Exception as e:
+                logger.error(f"Error in cleanup loop: {e}", exc_info=True)
 
     cleanup_task = asyncio.create_task(cleanup_loop())
+
+    logger.info("=" * 60)
+    logger.info("🚀 Application startup complete!")
+    logger.info("=" * 60)
 
     yield
 
     logger.info("Shutting down FastAPI application")
     cleanup_task.cancel()
+    try:
+        await cleanup_task
+    except asyncio.CancelledError:
+        pass
     await close_db()
     rag_app = None
 
@@ -203,6 +232,7 @@ app.add_middleware(
 )
 
 app.include_router(direct_chat_router)
+
 
 def get_app() -> RAGAgentApp:
     if rag_app is None:
