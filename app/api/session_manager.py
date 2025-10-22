@@ -78,8 +78,10 @@ async def create_session(response: Response, user_id: str, chat_session_id: str)
         value=session_id,
         httponly=True,
         secure=is_production,  # HTTPS only in production
-        samesite="strict",
-        max_age=int(SESSION_LIFETIME.total_seconds())
+        samesite="lax",
+        max_age=int(SESSION_LIFETIME.total_seconds()),
+        domain=".vibecoder.buzz" if is_production else None,
+        path="/"
     )
 
     # Send CSRF token in response header
@@ -202,7 +204,9 @@ async def clear_session(response: Response, request: Request):
         key=SESSION_COOKIE_NAME,
         httponly=True,
         secure=is_production,
-        samesite="strict"
+        samesite="lax",
+        domain=".vibecoder.buzz" if is_production else None,
+        path="/"
     )
 
 

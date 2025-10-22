@@ -232,9 +232,17 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "X-CSRF-Token", "Authorization", "X-API-Token"],
-    expose_headers=["X-CSRF-Token"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Include OPTIONS for preflight
+    allow_headers=[
+        "Content-Type",
+        "Authorization",
+        "X-CSRF-Token",
+        "X-API-Key",
+        "Accept",
+        "Origin",
+    ],
+    expose_headers=["Content-Type", "X-CSRF-Token"],
+    max_age=3600,
 )
 
 app.include_router(direct_chat_router)
