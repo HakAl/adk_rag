@@ -1,48 +1,70 @@
 """
-Run the FastAPI application in production mode.
+Run the FastAPI application in production mode with extensive error checking.
 """
-import uvicorn
-import os
 import sys
+import os
 
-# Add error handling for imports
+print("=" * 60)
+print("STARTUP DIAGNOSTICS")
+print("=" * 60)
+print(f"Python version: {sys.version}")
+print(f"PORT environment variable: {os.environ.get('PORT', 'NOT SET')}")
+print(f"ENVIRONMENT: {os.environ.get('ENVIRONMENT', 'NOT SET')}")
+print(f"DATABASE_URL: {'SET' if os.environ.get('DATABASE_URL') else 'NOT SET'}")
+print("=" * 60)
+
+# Test imports one by one
+print("\n1. Testing uvicorn import...")
+try:
+    import uvicorn
+    print("   ✓ uvicorn imported")
+except Exception as e:
+    print(f"   ✗ Failed to import uvicorn: {e}")
+    sys.exit(1)
+
+print("\n2. Testing config import...")
 try:
     from config import settings
-
-    print(f"✓ Config loaded successfully")
-    print(f"  Environment: {getattr(settings, 'environment', 'unknown')}")
-    print(f"  Debug: {getattr(settings, 'debug', 'unknown')}")
+    print("   ✓ config imported")
+    print(f"   - Environment: {getattr(settings, 'environment', 'unknown')}")
+    print(f"   - Debug: {getattr(settings, 'debug', 'unknown')}")
+    print(f"   - App name: {getattr(settings, 'app_name', 'unknown')}")
 except Exception as e:
-    print(f"✗ Failed to load config: {e}")
+    print(f"   ✗ Failed to import config: {e}")
     import traceback
-
     traceback.print_exc()
     sys.exit(1)
 
+print("\n3. Testing app import...")
 try:
     from app.api.main import app
-
-    print(f"✓ App imported successfully")
+    print("   ✓ app imported successfully")
 except Exception as e:
-    print(f"✗ Failed to import app: {e}")
+    print(f"   ✗ Failed to import app: {e}")
     import traceback
-
     traceback.print_exc()
     sys.exit(1)
+
+print("\n" + "=" * 60)
+print("ALL IMPORTS SUCCESSFUL - STARTING SERVER")
+print("=" * 60 + "\n")
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
-    print(f"Starting server on 0.0.0.0:{port}")
+    print(f"Starting uvicorn on 0.0.0.0:{port}\n")
 
-    uvicorn.run(
-        app,  # Use the app object directly instead of string
-        host="0.0.0.0",
-        port=port,
-        log_level="info",
-        # Critical for streaming - disable keep-alive timeout
-        timeout_keep_alive=0,
-        # Use smaller buffer for immediate flushing
-        limit_concurrency=None,
-        # Ensure we're using HTTP/1.1 with proper chunked transfer
-        http="h11"
-    )
+    try:
+        uvicorn.run(
+            app,
+            host="0.0.0.0",
+            port=port,
+            log_level="info",
+            timeout_keep_alive=0,
+            limit_concurrency=None,
+            http="h11"
+        )
+    except Exception as e:
+        print(f"\n✗ Failed to start uvicorn: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
