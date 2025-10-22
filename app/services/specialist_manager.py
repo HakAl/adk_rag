@@ -8,7 +8,19 @@ from config import settings, logger
 from app.services.circuit_breaker import CircuitBreaker
 from app.services.cloud_specialist_anthropic import CloudSpecialistAnthropicService
 from app.services.cloud_specialist_google import CloudSpecialistGoogleService
-from app.services.local_specialist_phi3 import LocalSpecialistPhi3Service
+
+# Gate llama_cpp imports for production
+if settings.environment != "production":
+    try:
+        from llama_cpp import Llama
+        from app.services.local_specialist_phi3 import LocalSpecialistPhi3Service
+        LLAMA_CPP_AVAILABLE = True
+    except ImportError:
+        LLAMA_CPP_AVAILABLE = False
+        logger.warning("llama_cpp not available for local specialists")
+else:
+    LLAMA_CPP_AVAILABLE = False
+    LocalSpecialistPhi3Service = None  # Type hint placeholder
 
 
 class SpecialistManager:
@@ -18,7 +30,7 @@ class SpecialistManager:
     Priority:
     1. Anthropic (cloud, fast, smart)
     2. Google (cloud, fast, smart)
-    3. Phi-3 (local, slower, reliable)
+    3. Phi-3 (local, slower, reliable) - non-production only
     """
 
     def __init__(self):
@@ -38,25 +50,31 @@ class SpecialistManager:
         # Check provider availability
         self.has_anthropic = bool(settings.anthropic_api_key)
         self.has_google = bool(settings.google_api_key)
-        self.has_local = bool(
-            settings.llamacpp_chat_model_path and
-            Path(settings.llamacpp_chat_model_path).exists()
-        )
 
-        # Shared Phi-3 model (lazy loaded)
+        # Only check local availability in non-production
+        self.has_local = False
+        if settings.environment != "production":
+            self.has_local = bool(
+                LLAMA_CPP_AVAILABLE and
+                settings.llamacpp_chat_model_path and
+                Path(settings.llamacpp_chat_model_path).exists()
+            )
+
+        # Shared Phi-3 model (lazy loaded, non-production only)
         self._phi3_model = None
 
         logger.info(
             f"SpecialistManager initialized - "
             f"Anthropic: {self.has_anthropic}, "
             f"Google: {self.has_google}, "
-            f"Local: {self.has_local}"
+            f"Local: {self.has_local} "
+            f"(environment: {settings.environment})"
         )
 
     async def get_specialist(
             self,
             specialist_type: str
-    ) -> Union[CloudSpecialistAnthropicService, CloudSpecialistGoogleService, LocalSpecialistPhi3Service]:
+    ) -> Union[CloudSpecialistAnthropicService, CloudSpecialistGoogleService, 'LocalSpecialistPhi3Service']:
         """
         Get best available specialist with cascading fallback.
 
@@ -89,13 +107,12 @@ class SpecialistManager:
                 logger.warning(f"Google specialist creation failed: {e}")
                 self.google_breaker.record_failure()
 
-        # Fallback to local Phi-3
-        if self.has_local:
+        # Fallback to local Phi-3 (non-production only)
+        if self.has_local and settings.environment != "production":
             try:
                 # Load shared model if not already loaded
                 if self._phi3_model is None:
                     logger.info("Loading shared Phi-3 model for local specialists")
-                    from llama_cpp import Llama
                     self._phi3_model = Llama(
                         model_path=settings.llamacpp_chat_model_path,
                         n_ctx=settings.llamacpp_n_ctx,
@@ -113,8 +130,9 @@ class SpecialistManager:
                 raise RuntimeError(f"Failed to create local specialist: {e}")
 
         # No specialists available
+        env_note = " (local not available in production)" if settings.environment == "production" else ""
         raise RuntimeError(
-            f"No specialists available for {specialist_type}. "
+            f"No specialists available for {specialist_type}{env_note}. "
             f"Anthropic: {'circuit open' if self.anthropic_breaker.is_open() else 'unavailable'}, "
             f"Google: {'circuit open' if self.google_breaker.is_open() else 'unavailable'}, "
             f"Local: unavailable"
@@ -162,13 +180,12 @@ class SpecialistManager:
                 logger.warning(f"Google execution failed: {e}")
                 self.google_breaker.record_failure()
 
-        # Try local
-        if self.has_local:
+        # Try local (non-production only)
+        if self.has_local and settings.environment != "production":
             try:
                 # Load shared model if not already loaded
                 if self._phi3_model is None:
                     logger.info("Loading shared Phi-3 model for fallback")
-                    from llama_cpp import Llama
                     self._phi3_model = Llama(
                         model_path=settings.llamacpp_chat_model_path,
                         n_ctx=settings.llamacpp_n_ctx,
@@ -231,13 +248,12 @@ class SpecialistManager:
                 logger.warning(f"Google streaming failed: {e}")
                 self.google_breaker.record_failure()
 
-        # Try local
-        if self.has_local:
+        # Try local (non-production only)
+        if self.has_local and settings.environment != "production":
             try:
                 # Load shared model if not already loaded
                 if self._phi3_model is None:
                     logger.info("Loading shared Phi-3 model for streaming fallback")
-                    from llama_cpp import Llama
                     self._phi3_model = Llama(
                         model_path=settings.llamacpp_chat_model_path,
                         n_ctx=settings.llamacpp_n_ctx,
@@ -270,7 +286,8 @@ class SpecialistManager:
             },
             "local": {
                 "available": self.has_local,
-                "model_loaded": self._phi3_model is not None
+                "model_loaded": self._phi3_model is not None,
+                "environment": settings.environment
             }
         }
 

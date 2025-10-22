@@ -1,15 +1,33 @@
 """
 Local specialist service using Phi-3 via llama.cpp.
+Note: This service is only available in non-production environments.
 """
 import asyncio
 from typing import Optional, AsyncGenerator
-from llama_cpp import Llama
 
 from config import settings, logger
 
+# Gate llama_cpp imports for production
+if settings.environment != "production":
+    try:
+        from llama_cpp import Llama
+        LLAMA_CPP_AVAILABLE = True
+    except ImportError:
+        LLAMA_CPP_AVAILABLE = False
+        logger.warning("llama_cpp not available for local specialists")
+        Llama = None  # Type hint placeholder
+else:
+    LLAMA_CPP_AVAILABLE = False
+    Llama = None  # Type hint placeholder
+
 
 class LocalSpecialistPhi3Service:
-    """Service for specialist tasks using local Phi-3 model."""
+    """
+    Service for specialist tasks using local Phi-3 model.
+
+    Note: This service is only available in non-production environments
+    where ENVIRONMENT != "production".
+    """
 
     # Specialist-specific prompts
     SPECIALIST_PROMPTS = {
@@ -53,14 +71,29 @@ You are a helpful assistant. Provide clear, friendly, and professional responses
 <|assistant|>"""
     }
 
-    def __init__(self, specialist_type: str, model: Optional[Llama] = None):
+    def __init__(self, specialist_type: str, model: Optional['Llama'] = None):
         """
         Initialize local Phi-3 specialist.
 
         Args:
             specialist_type: Type of specialist (code_validation, etc.)
             model: Optional pre-loaded Llama model (for sharing)
+
+        Raises:
+            RuntimeError: If used in production environment
         """
+        # Check environment
+        if settings.environment == "production":
+            raise RuntimeError(
+                "LocalSpecialistPhi3Service cannot be used in production environment. "
+                "Please use cloud-based specialists (Anthropic or Google)."
+            )
+
+        if not LLAMA_CPP_AVAILABLE:
+            raise RuntimeError(
+                "llama_cpp not available. Cannot create local specialist."
+            )
+
         self.specialist_type = specialist_type
         self.prompt_template = self.SPECIALIST_PROMPTS.get(
             specialist_type,
@@ -75,8 +108,19 @@ You are a helpful assistant. Provide clear, friendly, and professional responses
             self.model = self._load_model()
             logger.info(f"LocalSpecialistPhi3 loaded new model: {specialist_type}")
 
-    def _load_model(self) -> Llama:
-        """Load Phi-3 model."""
+    def _load_model(self) -> 'Llama':
+        """
+        Load Phi-3 model.
+
+        Raises:
+            RuntimeError: If used in production environment
+        """
+        if settings.environment == "production":
+            raise RuntimeError("Cannot load local model in production environment")
+
+        if not LLAMA_CPP_AVAILABLE:
+            raise RuntimeError("llama_cpp not available")
+
         return Llama(
             model_path=settings.llamacpp_chat_model_path,
             n_ctx=settings.llamacpp_n_ctx,
@@ -100,7 +144,13 @@ You are a helpful assistant. Provide clear, friendly, and professional responses
 
         Returns:
             Specialist's response
+
+        Raises:
+            RuntimeError: If used in production environment
         """
+        if settings.environment == "production":
+            raise RuntimeError("Local specialist execution not allowed in production")
+
         try:
             # Build prompt with context if provided
             if context and "{context}" in self.prompt_template:
@@ -135,7 +185,13 @@ You are a helpful assistant. Provide clear, friendly, and professional responses
 
         Yields:
             Text chunks as they arrive from Phi-3
+
+        Raises:
+            RuntimeError: If used in production environment
         """
+        if settings.environment == "production":
+            raise RuntimeError("Local specialist streaming not allowed in production")
+
         try:
             # Build prompt with context if provided
             if context and "{context}" in self.prompt_template:
@@ -152,7 +208,15 @@ You are a helpful assistant. Provide clear, friendly, and professional responses
             raise
 
     def _generate(self, prompt: str) -> str:
-        """Generate response using Phi-3."""
+        """
+        Generate response using Phi-3.
+
+        Raises:
+            RuntimeError: If used in production environment
+        """
+        if settings.environment == "production":
+            raise RuntimeError("Local generation not allowed in production")
+
         response = self.model(
             prompt,
             max_tokens=settings.llamacpp_max_tokens,
@@ -163,7 +227,15 @@ You are a helpful assistant. Provide clear, friendly, and professional responses
         return response['choices'][0]['text'].strip()
 
     async def _generate_stream(self, prompt: str) -> AsyncGenerator[str, None]:
-        """Generate streaming response using Phi-3."""
+        """
+        Generate streaming response using Phi-3.
+
+        Raises:
+            RuntimeError: If used in production environment
+        """
+        if settings.environment == "production":
+            raise RuntimeError("Local streaming not allowed in production")
+
         loop = asyncio.get_event_loop()
 
         # Create the streaming generator in executor

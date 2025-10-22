@@ -1,3 +1,9 @@
 # llama.cpp support - only install when PROVIDER_TYPE=llamacpp
 # Requires build tools: cmake, gcc, g++
 llama-cpp-python>=0.2.0
+
+# llama.cpp support
+llama-cpp-python>=0.2.0
+
+# Vector store
+chromadb>=0.4.22

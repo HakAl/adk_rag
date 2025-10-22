@@ -12,16 +12,11 @@ langchain-chroma>=0.1.0
 langchain-ollama>=0.1.0
 langchain-text-splitters>=0.0.1
 
-# llama.cpp support
-llama-cpp-python>=0.2.0
 
 # Document processing
 pypdf>=3.17.0
 sentence-transformers>=2.2.2
 pyarrow>=14.0.0
-
-# Vector store
-chromadb>=0.4.22
 
 # Utilities
 python-dotenv>=1.0.0

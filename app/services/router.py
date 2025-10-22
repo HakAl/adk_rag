@@ -8,6 +8,17 @@ from pathlib import Path
 
 from config import settings, logger
 
+# Gate llama_cpp imports for production
+if settings.environment != "production":
+    try:
+        from llama_cpp import Llama, LlamaGrammar
+        LLAMA_CPP_AVAILABLE = True
+    except ImportError:
+        LLAMA_CPP_AVAILABLE = False
+        logger.warning("llama_cpp not available for local routing")
+else:
+    LLAMA_CPP_AVAILABLE = False
+
 
 class RouterService:
     """Service for routing requests to appropriate agents."""
@@ -37,8 +48,12 @@ ws ::= [ \t\n]*
             elif settings.google_api_key:
                 self._initialize_cloud_router_google()
             else:
-                # Fall back to local router
-                self._initialize_llm()
+                # Fall back to local router only in non-production
+                if settings.environment != "production":
+                    self._initialize_llm()
+                else:
+                    logger.warning("Local router not available in production - cloud routing required")
+                    self.enabled = False
         else:
             logger.info("RouterService disabled - no router configured")
 
@@ -48,10 +63,18 @@ ws ::= [ \t\n]*
 
         Router is enabled if EITHER:
         1. Cloud API keys are available (Anthropic or Google), OR
-        2. Local router model path is configured
+        2. Local router model path is configured (non-production only)
         """
         has_cloud = bool(settings.anthropic_api_key or settings.google_api_key)
-        has_local = bool(settings.router_model_path and Path(settings.router_model_path).exists())
+
+        # Only check local model in non-production
+        has_local = False
+        if settings.environment != "production":
+            has_local = bool(
+                LLAMA_CPP_AVAILABLE and
+                settings.router_model_path and
+                Path(settings.router_model_path).exists()
+            )
 
         return has_cloud or has_local
 
@@ -86,10 +109,18 @@ ws ::= [ \t\n]*
             self.enabled = False
 
     def _initialize_llm(self):
-        """Initialize the local router LLM."""
-        try:
-            from llama_cpp import Llama
+        """Initialize the local router LLM (non-production only)."""
+        if settings.environment == "production":
+            logger.error("Cannot initialize local LLM in production environment")
+            self.enabled = False
+            return
 
+        if not LLAMA_CPP_AVAILABLE:
+            logger.error("llama_cpp not available for local routing")
+            self.enabled = False
+            return
+
+        try:
             self.llm = Llama(
                 model_path=settings.router_model_path,
                 n_ctx=settings.router_n_ctx,
@@ -137,7 +168,16 @@ ws ::= [ \t\n]*
             if self.cloud_router:
                 return self.cloud_router.route(message)
 
-            # Otherwise use local router
+            # Otherwise use local router (non-production only)
+            if settings.environment == "production":
+                logger.error("Local routing attempted in production environment")
+                return {
+                    "primary_agent": "general_chat",
+                    "parallel_agents": [],
+                    "confidence": 0.5,
+                    "reasoning": "Local routing not available in production"
+                }
+
             prompt = self._build_routing_prompt(message)
             response = self._generate(prompt)
             routing_decision = self._parse_routing_response(response)
@@ -195,7 +235,11 @@ JSON Response:"""
 
     def _generate(self, prompt: str) -> str:
         """Generate response from local router LLM with JSON grammar enforcement."""
-        from llama_cpp import LlamaGrammar
+        if settings.environment == "production":
+            raise RuntimeError("Local generation not available in production")
+
+        if not LLAMA_CPP_AVAILABLE:
+            raise RuntimeError("llama_cpp not available")
 
         # Create grammar object to enforce JSON structure
         grammar = LlamaGrammar.from_string(self.ROUTING_GRAMMAR)

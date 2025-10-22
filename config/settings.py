@@ -116,15 +116,28 @@ class Settings:
 
     def __post_init__(self):
         """Initialize computed paths and ensure directories exist."""
+        import sys
+
         self.data_dir = self.base_dir / "data"
         self.vector_store_dir = self.base_dir / "chroma_db"
         self.log_dir = self.base_dir / "logs"
 
-        # Create directories
-        self.data_dir.mkdir(parents=True, exist_ok=True)
-        self.vector_store_dir.mkdir(parents=True, exist_ok=True)
+        # Create directories with error handling
+        try:
+            self.data_dir.mkdir(parents=True, exist_ok=True)
+        except (PermissionError, OSError) as e:
+            print(f"Warning: Could not create data_dir: {e}", file=sys.stderr, flush=True)
+
+        try:
+            self.vector_store_dir.mkdir(parents=True, exist_ok=True)
+        except (PermissionError, OSError) as e:
+            print(f"Warning: Could not create vector_store_dir: {e}", file=sys.stderr, flush=True)
+
         if self.log_to_file:
-            self.log_dir.mkdir(parents=True, exist_ok=True)
+            try:
+                self.log_dir.mkdir(parents=True, exist_ok=True)
+            except (PermissionError, OSError) as e:
+                print(f"Warning: Could not create log_dir: {e}", file=sys.stderr, flush=True)
 
     @classmethod
     def from_env(cls) -> 'Settings':
