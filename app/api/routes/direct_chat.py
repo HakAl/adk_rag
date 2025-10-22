@@ -120,7 +120,10 @@ async def chat_direct_anthropic_stream(
     )
 
 
-@router.post("/anthropic/classify")
+@router.post(
+    "/anthropic/classify",
+    dependencies=[Depends(chat_rate_limit)]
+)
 async def classify_anthropic(
         request_data: ChatRequest,
         request: Request,
@@ -164,7 +167,10 @@ async def classify_anthropic(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/google/classify")
+@router.post(
+    "/google/classify",
+    dependencies=[Depends(chat_rate_limit)]
+)
 async def classify_google(
         request_data: ChatRequest,
         request: Request,
