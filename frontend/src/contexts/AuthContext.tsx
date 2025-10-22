@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { setCsrfToken } from '../api/backend/chat.ts';
 import { useApiKeys } from './ApiKeyContext';
+import { getApiUrl } from '../config/api/config';
 
 interface User {
   user_id: string;
@@ -27,7 +28,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const checkAuth = async () => {
     try {
-      const response = await fetch('/me', {
+      const response = await fetch(getApiUrl('/me'), {
         credentials: 'include'
       });
 
@@ -50,7 +51,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const login = async (usernameOrEmail: string, password: string) => {
-    const response = await fetch('/login', {
+    const response = await fetch(getApiUrl('/login'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -89,7 +90,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const register = async (username: string, email: string, password: string) => {
-    const response = await fetch('/register', {
+    const response = await fetch(getApiUrl('/register'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -108,7 +109,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const logout = async () => {
     try {
-      await fetch('/logout', {
+      await fetch(getApiUrl('/logout'), {
         method: 'POST',
         credentials: 'include'
       });
